@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<sheet name="building">
+	<columns>
+		<column type="D@uint" name="cost_wood" />
+		<column type="D@uint" name="cost_clay" />
+		<column type="D@uint" name="cost_iron" />
+		<column type="D@uint" name="cost_crop" />
+		<column type="D@uint" name="cost_gold" />
+		<column type="D@uint" name="cost_population" />
+		<column type="D@uint" name="production" />
+	</columns>
+	<rows>
+		<row cost_wood="80" cost_clay="40" cost_iron="80" cost_crop="50" cost_gold="340" cost_population="2" production="168" />
+		<row cost_wood="135" cost_clay="65" cost_iron="135" cost_crop="85" cost_gold="910" cost_population="1" production="312" />
+		<row cost_wood="225" cost_clay="110" cost_iron="225" cost_crop="140" cost_gold="1800" cost_population="1" production="504" />
+		<row cost_wood="375" cost_clay="185" cost_iron="375" cost_crop="235" cost_gold="3210" cost_population="1" production="744" />
+		<row cost_wood="620" cost_clay="310" cost_iron="620" cost_crop="390" cost_gold="5450" cost_population="1" production="1104" />
+	</rows>
+</sheet>
