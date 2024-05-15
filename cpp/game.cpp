@@ -8,6 +8,7 @@ cCameraPtr camera;
 
 graphics::ImagePtr img_tile_frame;
 graphics::ImagePtr img_tile_grass;
+graphics::ImagePtr img_tile_house;
 
 auto tile_cx = 10U;
 auto tile_cy = 10U;
@@ -94,7 +95,9 @@ enum BuildingType
 	BuildingTower,
 	BuildingWall,
 
-	BuildingTypeCount
+	BuildingTypeCount,
+	BuildingInTownBegin = BuildingTownCenter,
+	BuildingInTownEnd = BuildingBarracks,
 };
 
 const wchar_t* get_building_name(BuildingType type)
@@ -113,8 +116,36 @@ const wchar_t* get_building_name(BuildingType type)
 struct Building
 {
 	BuildingType type;
-	uint lv;
+	uint lv = 0;
 };
+
+struct BuildingBaseData
+{
+	uint cost_wood;
+	uint cost_clay;
+	uint cost_iron;
+	uint cost_crop;
+	uint cost_gold;
+	uint cost_population;
+};
+
+struct TownCenterData : BuildingBaseData
+{
+};
+std::vector<TownCenterData> town_center_datas;
+
+BuildingBaseData* get_building_base_data(BuildingType type, uint lv)
+{
+	BuildingBaseData* ret = nullptr;
+	switch (type)
+	{
+	case BuildingTownCenter: 
+		if (town_center_datas.size() > lv)
+			ret = &town_center_datas[lv];
+		break;
+	}
+	return ret;
+}
 
 struct City
 {
@@ -122,13 +153,13 @@ struct City
 	std::vector<Building> buildings;
 };
 
-struct TownBuildingSlot
+struct BuildingSlot
 {
 	vec2 pos;
 	float radius;
-	BuildingType building_type;
+	BuildingType type;
 };
-std::vector<TownBuildingSlot> town_building_slots;
+std::vector<BuildingSlot> building_slots;
 
 int selected_building_slot = -1;
 
@@ -240,7 +271,17 @@ struct Lord
 		return -1;
 	}
 
-	bool build_resource_field(uint tile_id, ResourceType type)
+	int find_city(uint tile_id)
+	{
+		for (auto i = 0; i < cities.size(); i++)
+		{
+			if (cities[i].tile_id == tile_id)
+				return i;
+		}
+		return -1;
+	}
+
+	bool build_resource_field(uint tile_id, ResourceType type, bool free = false)
 	{
 		auto& tile = tiles[tile_id];
 		if (tile.type != TileField)
@@ -248,21 +289,26 @@ struct Lord
 
 		if (resource_field_datas[type].empty())
 			return false;
-		auto& first_level = resource_field_datas[type].front();
-		if (resources[ResourceWood] < first_level.cost_wood ||
-			resources[ResourceClay] < first_level.cost_clay ||
-			resources[ResourceIron] < first_level.cost_iron ||
-			resources[ResourceCrop] < first_level.cost_crop ||
-			resources[ResourceGold] < first_level.cost_gold ||
-			provide_population < consume_population + first_level.cost_population)
-			return false;
 
-		resources[ResourceWood] -= first_level.cost_wood;
-		resources[ResourceClay] -= first_level.cost_clay;
-		resources[ResourceIron] -= first_level.cost_iron;
-		resources[ResourceCrop] -= first_level.cost_crop;
-		resources[ResourceGold] -= first_level.cost_gold;
-		consume_population += first_level.cost_population;
+		auto& first_level = resource_field_datas[type].front();
+
+		if (!free)
+		{
+			if (resources[ResourceWood] < first_level.cost_wood ||
+				resources[ResourceClay] < first_level.cost_clay ||
+				resources[ResourceIron] < first_level.cost_iron ||
+				resources[ResourceCrop] < first_level.cost_crop ||
+				resources[ResourceGold] < first_level.cost_gold ||
+				provide_population < consume_population + first_level.cost_population)
+				return false;
+
+			resources[ResourceWood] -= first_level.cost_wood;
+			resources[ResourceClay] -= first_level.cost_clay;
+			resources[ResourceIron] -= first_level.cost_iron;
+			resources[ResourceCrop] -= first_level.cost_crop;
+			resources[ResourceGold] -= first_level.cost_gold;
+			consume_population += first_level.cost_population;
+		}
 
 		ResourceField resource_field;
 		resource_field.tile_id = tile_id;
@@ -276,29 +322,95 @@ struct Lord
 		return true;
 	}
 
-	bool upgrade_resource_field(ResourceField& resource_field)
+	bool upgrade_resource_field(ResourceField& resource_field, bool free = false)
 	{
 		if (resource_field_datas[resource_field.type].size() <= resource_field.lv)
 			return false;
 
 		auto& next_level = resource_field_datas[resource_field.type][resource_field.lv];
-		if (resources[ResourceWood] < next_level.cost_wood ||
-			resources[ResourceClay] < next_level.cost_clay ||
-			resources[ResourceIron] < next_level.cost_iron ||
-			resources[ResourceCrop] < next_level.cost_crop ||
-			resources[ResourceGold] < next_level.cost_gold ||
-			provide_population < consume_population + next_level.cost_population)
-			return false;
 
-		resources[ResourceWood] -= next_level.cost_wood;
-		resources[ResourceClay] -= next_level.cost_clay;
-		resources[ResourceIron] -= next_level.cost_iron;
-		resources[ResourceCrop] -= next_level.cost_crop;
-		resources[ResourceGold] -= next_level.cost_gold;
-		consume_population += next_level.cost_population;
+		if (!free)
+		{
+			if (resources[ResourceWood] < next_level.cost_wood ||
+				resources[ResourceClay] < next_level.cost_clay ||
+				resources[ResourceIron] < next_level.cost_iron ||
+				resources[ResourceCrop] < next_level.cost_crop ||
+				resources[ResourceGold] < next_level.cost_gold ||
+				provide_population < consume_population + next_level.cost_population)
+				return false;
+
+			resources[ResourceWood] -= next_level.cost_wood;
+			resources[ResourceClay] -= next_level.cost_clay;
+			resources[ResourceIron] -= next_level.cost_iron;
+			resources[ResourceCrop] -= next_level.cost_crop;
+			resources[ResourceGold] -= next_level.cost_gold;
+			consume_population += next_level.cost_population;
+		}
 
 		resource_field.lv++;
 		resource_field.production = next_level.production;
+
+		return true;
+	}
+
+	bool build_building(City& city, uint slot, bool free = false)
+	{
+		auto type = building_slots[slot].type;
+
+		if (!free)
+		{
+			if (auto base_data = get_building_base_data(type, 0); base_data)
+			{
+				if (resources[ResourceWood] < base_data->cost_wood ||
+					resources[ResourceClay] < base_data->cost_clay ||
+					resources[ResourceIron] < base_data->cost_iron ||
+					resources[ResourceCrop] < base_data->cost_crop ||
+					resources[ResourceGold] < base_data->cost_gold ||
+					provide_population < consume_population + base_data->cost_population)
+					return false;
+
+				resources[ResourceWood] -= base_data->cost_wood;
+				resources[ResourceClay] -= base_data->cost_clay;
+				resources[ResourceIron] -= base_data->cost_iron;
+				resources[ResourceCrop] -= base_data->cost_crop;
+				resources[ResourceGold] -= base_data->cost_gold;
+				consume_population += base_data->cost_population;
+			}
+		}
+
+		auto& building = city.buildings[slot];
+		building.lv = 1;
+
+		return true;
+	}
+
+	bool upgrade_building(City& city, uint slot, bool free = false)
+	{
+		auto& building = city.buildings[slot];
+		auto type = building.type;
+
+		if (!free)
+		{
+			if (auto base_data = get_building_base_data(type, building.lv); base_data)
+			{
+				if (resources[ResourceWood] < base_data->cost_wood ||
+					resources[ResourceClay] < base_data->cost_clay ||
+					resources[ResourceIron] < base_data->cost_iron ||
+					resources[ResourceCrop] < base_data->cost_crop ||
+					resources[ResourceGold] < base_data->cost_gold ||
+					provide_population < consume_population + base_data->cost_population)
+					return false;
+
+				resources[ResourceWood] -= base_data->cost_wood;
+				resources[ResourceClay] -= base_data->cost_clay;
+				resources[ResourceIron] -= base_data->cost_iron;
+				resources[ResourceCrop] -= base_data->cost_crop;
+				resources[ResourceGold] -= base_data->cost_gold;
+				consume_population += base_data->cost_population;
+			}
+		}
+
+		building.lv++;
 
 		return true;
 	}
@@ -331,6 +443,14 @@ void add_lord(uint tile_id)
 
 	City city;
 	city.tile_id = tile_id;
+	city.buildings.resize(building_slots.size());
+	for (auto i = 0; i < building_slots.size(); i++)
+	{
+		auto type = building_slots[i].type;
+		city.buildings[i].type = type;
+		if (type == BuildingTownCenter)
+			lord.build_building(city, i, true);
+	}
 	tiles[tile_id].type = TileCity;
 
 	lord.cities.push_back(city);
@@ -385,6 +505,7 @@ void Game::init()
 
 	img_tile_frame = graphics::Image::get(L"assets/HexTilesetv3.png_slices/00.png");
 	img_tile_grass = graphics::Image::get(L"assets/HexTilesetv3.png_slices/01.png");
+	img_tile_house = graphics::Image::get(L"assets/HexTilesetv3.png_slices/212.png");
 	img_resources[ResourceWood] = graphics::Image::get(L"assets/icons/wood.png");
 	img_resources[ResourceClay] = graphics::Image::get(L"assets/icons/clay.png");
 	img_resources[ResourceIron] = graphics::Image::get(L"assets/icons/iron.png");
@@ -474,18 +595,28 @@ void Game::init()
 			resource_field_datas[ResourceCrop].push_back(data);
 		}
 	}
-	if (auto sht = Sheet::get(L"assets/town_building_slots.sht"); sht)
+	if (auto sht = Sheet::get(L"assets/building_slots.sht"); sht)
 	{
 		for (auto i = 0; i < sht->rows.size(); i++)
 		{
-			TownBuildingSlot slot;
+			BuildingSlot slot;
 			auto& row = sht->rows[i];
 			slot.pos = sht->get_as<vec2>(row, "pos"_h);
 			slot.radius = sht->get_as<float>(row, "radius"_h);
-			slot.building_type = (BuildingType)sht->get_as<uint>(row, "building"_h);
-			town_building_slots.push_back(slot);
+			auto building_name = sht->get_as_wstr(row, "building"_h);
+			for (auto j = 0; j < BuildingTypeCount; j++)
+			{
+				if (building_name == get_building_name((BuildingType)j))
+				{
+					slot.type = (BuildingType)j;
+					break;
+				}
+			}
+			building_slots.push_back(slot);
 		}
 	}
+	building_slots.push_back({ .type = BuildingTower });
+	building_slots.push_back({ .type = BuildingWall });
 
 	if (auto id = search_lord_location(); id != -1)
 		add_lord(id);
@@ -621,35 +752,102 @@ void Game::on_render()
 			for (auto i = 0; i < 6; i++)
 				canvas->add_circle_filled(tower_pos[i], 8.f, cvec4(255, 80, 80, 255));
 
-			for (auto& slot : town_building_slots)
-				canvas->add_circle_filled(c + slot.pos, slot.radius, cvec4(255, 127, 127, 255));
-
-			if (input->mpressed(Mouse_Left))
+			for (auto i = 0; i < building_slots.size(); i++)
 			{
-				for (auto i = 0; i < town_building_slots.size(); i++)
+				auto& slot = building_slots[i];
+				if (slot.type > BuildingInTownEnd)
+					break;
+				canvas->add_circle_filled(c + slot.pos, slot.radius, cvec4(255, 127, 127, 255));
+			}
+			if (main_player)
+			{
+				if (auto id = main_player->find_city(selected_tile); id != -1)
 				{
-					auto& slot = town_building_slots[i];
-					if (distance(mpos, c + slot.pos) < slot.radius)
+					auto& city = main_player->cities[id];
+					for (auto i = 0; i < building_slots.size(); i++)
 					{
-						selected_building_slot = slot.building_type;
-						break;
+						auto& slot = building_slots[i];
+						auto& building = city.buildings[i];
+						if (building.lv > 0)
+							canvas->add_image(img_tile_house->get_view(), c + slot.pos - vec2(12.f), c + slot.pos + vec2(12.f), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
 					}
-				}
-				if (selected_building_slot == -1)
-				{
-					for (auto i = 0; i < 6; i++)
+
+					if (input->mpressed(Mouse_Left))
 					{
-						if (distance(mpos, tower_pos[i]) < 8.f)
+						for (auto i = 0; i < building_slots.size(); i++)
 						{
-							selected_building_slot = BuildingTower;
+							auto& slot = building_slots[i];
+							if (slot.type > BuildingInTownEnd)
+								break;
+							if (distance(mpos, c + slot.pos) < slot.radius)
+							{
+								selected_building_slot = i;
+								break;
+							}
+						}
+						if (selected_building_slot == -1)
+						{
+							for (auto i = 0; i < 6; i++)
+							{
+								if (distance(mpos, tower_pos[i]) < 8.f)
+								{
+									selected_building_slot = building_slots.size() - 2;
+									break;
+								}
+							}
+						}
+						if (selected_building_slot == -1)
+						{
+							if (auto d = distance(mpos, c); d > 70.f && d < 80.f)
+								selected_building_slot = building_slots.size() - 1;
+						}
+					}
+
+					if (selected_building_slot != -1)
+					{
+						auto& building = city.buildings[selected_building_slot];
+						auto type = building_slots[selected_building_slot].type;
+						switch (type)
+						{
+						case BuildingTownCenter:
+							renderer->hud_set_cursor(rect.a + vec2(180.f, 0.f));
+							renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+							renderer->hud_text(L"Town Center");
+							renderer->hud_end_layout();
+							if (auto next_level = get_building_base_data(type, building.lv); next_level)
+							{
+								renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceWood]);
+								renderer->hud_text(std::format(L"{}", next_level->cost_wood), 16);
+								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceClay]);
+								renderer->hud_text(std::format(L"{}", next_level->cost_clay), 16);
+								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceIron]);
+								renderer->hud_text(std::format(L"{}", next_level->cost_iron), 16);
+								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
+								renderer->hud_text(std::format(L"{}", next_level->cost_crop), 16);
+								renderer->hud_end_layout();
+								renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceGold]);
+								renderer->hud_text(std::format(L"{}", next_level->cost_gold), 16);
+								renderer->hud_image(vec2(18.f, 12.f), img_pop);
+								renderer->hud_text(std::format(L"{}", next_level->cost_population), 16);
+								renderer->hud_end_layout();
+
+								if (renderer->hud_button(L"Upgrade", 18))
+									main_player->upgrade_building(city, selected_building_slot);
+							}
+							renderer->hud_stroke_item();
+							break;
+						case BuildingTower:
+							renderer->hud_set_cursor(rect.a + vec2(180.f, 0.f));
+							renderer->hud_text(L"Tower");
+							break;
+						case BuildingWall:
+							renderer->hud_set_cursor(rect.a + vec2(180.f, 0.f));
+							renderer->hud_text(L"Wall");
 							break;
 						}
 					}
-				}
-				if (selected_building_slot == -1)
-				{
-					if (auto d = distance(mpos, c); d > 70.f && d < 80.f)
-						selected_building_slot = BuildingWall;
 				}
 			}
 		}
@@ -704,6 +902,7 @@ void Game::on_render()
 			break;
 		}
 	}	
+
 	for (auto& lord : lords)
 	{
 		for (auto& city : lord.cities)

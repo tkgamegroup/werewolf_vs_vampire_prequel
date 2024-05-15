@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<sheet name="building">
+	<columns>
+		<column type="D@glm::vec2" name="pos" />
+		<column type="D@float" name="radius" />
+		<column type="D@std::wstring" name="building" />
+	</columns>
+	<rows>
+		<row pos="0,0" radius="8" building="Town Center" />
+	</rows>
+</sheet>
