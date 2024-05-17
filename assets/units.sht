@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<sheet name="units">
+	<columns>
+		<column type="D@std::wstring" name="name" />
+		<column type="D@uint" name="cost_wood" />
+		<column type="D@uint" name="cost_clay" />
+		<column type="D@uint" name="cost_iron" />
+		<column type="D@uint" name="cost_crop" />
+		<column type="D@uint" name="cost_gold" />
+		<column type="D@uint" name="cost_population" />
+		<column type="D@uint" name="required_barracks_lv" />
+		<column type="D@uint" name="hp" />
+		<column type="D@uint" name="atk" />
+	</columns>
+	<rows>
+		<row name="Legionnaire" cost_wood="120" cost_clay="100" cost_iron="150" cost_crop="30" cost_gold="332" cost_population="1" required_barracks_lv="1" hp="85" atk="40" />
+	</rows>
+</sheet>

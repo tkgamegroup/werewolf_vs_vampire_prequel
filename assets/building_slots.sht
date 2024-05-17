@@ -7,5 +7,6 @@
 	</columns>
 	<rows>
 		<row pos="0,0" radius="8" building="Town Center" />
+		<row pos="12,-12" radius="8" building="Barracks" />
 	</rows>
 </sheet>

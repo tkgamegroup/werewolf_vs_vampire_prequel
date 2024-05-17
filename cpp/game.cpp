@@ -10,8 +10,8 @@ graphics::ImagePtr img_tile_frame;
 graphics::ImagePtr img_tile_grass;
 graphics::ImagePtr img_tile_house;
 
-auto tile_cx = 10U;
-auto tile_cy = 10U;
+auto tile_cx = 18U;
+auto tile_cy = 9U;
 auto tile_sz = 50.f;
 
 enum TileType
@@ -26,8 +26,10 @@ enum TileType
 struct Tile
 {
 	uint id;
+	uint x, y;
 	vec2 pos;
 	TileType type;
+	int lord_id;
 
 	int tile_lt = -1;
 	int tile_t = -1;
@@ -87,6 +89,29 @@ std::vector<uint> find_path(uint start_id, uint end_id)
 	return ret;
 }
 
+struct UnitData
+{
+	std::wstring name;
+	uint cost_wood;
+	uint cost_clay;
+	uint cost_iron;
+	uint cost_crop;
+	uint cost_gold;
+	uint cost_population;
+	uint required_barracks_lv;
+	uint hp;
+	uint atk;
+	uint def;
+};
+std::vector<UnitData> unit_datas;
+
+struct Uint
+{
+	uint hp;
+	uint atk;
+	uint def;
+};
+
 enum BuildingType
 {
 	BuildingTownCenter,
@@ -113,12 +138,6 @@ const wchar_t* get_building_name(BuildingType type)
 	return L"";
 }
 
-struct Building
-{
-	BuildingType type;
-	uint lv = 0;
-};
-
 struct BuildingBaseData
 {
 	uint cost_wood;
@@ -127,12 +146,43 @@ struct BuildingBaseData
 	uint cost_crop;
 	uint cost_gold;
 	uint cost_population;
+
+	void read(Sheet::Row& row, SheetPtr sht)
+	{
+		cost_wood = sht->get_as<uint>(row, "cost_wood"_h);
+		cost_clay = sht->get_as<uint>(row, "cost_clay"_h);
+		cost_iron = sht->get_as<uint>(row, "cost_iron"_h);
+		cost_crop = sht->get_as<uint>(row, "cost_crop"_h);
+		cost_gold = sht->get_as<uint>(row, "cost_gold"_h);
+		cost_population = sht->get_as<uint>(row, "cost_population"_h);
+	}
 };
 
 struct TownCenterData : BuildingBaseData
 {
 };
 std::vector<TownCenterData> town_center_datas;
+
+struct HouseData : BuildingBaseData
+{
+};
+std::vector<HouseData> house_datas;
+
+struct BarracksData : BuildingBaseData
+{
+	std::vector<uint> buys;
+};
+std::vector<BarracksData> barracks_datas;
+
+struct TowerData : BuildingBaseData
+{
+};
+std::vector<TowerData> tower_datas;
+
+struct WallData : BuildingBaseData
+{
+};
+std::vector<WallData> wall_datas;
 
 BuildingBaseData* get_building_base_data(BuildingType type, uint lv)
 {
@@ -143,13 +193,43 @@ BuildingBaseData* get_building_base_data(BuildingType type, uint lv)
 		if (town_center_datas.size() > lv)
 			ret = &town_center_datas[lv];
 		break;
+	case BuildingHouse:
+		if (house_datas.size() > lv)
+			ret = &house_datas[lv];
+		break;
+	case BuildingBarracks:
+		if (barracks_datas.size() > lv)
+			ret = &barracks_datas[lv];
+		break;
+	case BuildingTower:
+		if (tower_datas.size() > lv)
+			ret = &tower_datas[lv];
+		break;
+	case BuildingWall:
+		if (wall_datas.size() > lv)
+			ret = &wall_datas[lv];
+		break;
 	}
 	return ret;
 }
 
+struct Buy
+{
+	uint unit_id;
+	uint num;
+};
+
+struct Building
+{
+	BuildingType type;
+	uint lv = 0;
+	std::vector<Buy> buys;
+};
+
 struct City
 {
 	uint tile_id;
+	uint lord_id;
 	std::vector<Building> buildings;
 };
 
@@ -221,8 +301,16 @@ std::vector<ResourceFieldData> resource_field_datas[ResourceTypeCount];
 graphics::ImagePtr img_resources[ResourceTypeCount] = {};
 graphics::ImagePtr img_pop;
 
+struct Troop
+{
+	std::vector<uint> path;
+	std::vector<Uint> units;
+};
+
 struct Lord
 {
+	uint id;
+
 	uint resources[ResourceTypeCount];
 	uint provide_population;
 	uint consume_population;
@@ -230,6 +318,8 @@ struct Lord
 	std::vector<City> cities;
 	std::vector<uint> territories;
 	std::vector<ResourceField> resource_fields;
+
+	std::vector<Troop> troops;
 
 	void update_territories()
 	{
@@ -353,37 +443,6 @@ struct Lord
 		return true;
 	}
 
-	bool build_building(City& city, uint slot, bool free = false)
-	{
-		auto type = building_slots[slot].type;
-
-		if (!free)
-		{
-			if (auto base_data = get_building_base_data(type, 0); base_data)
-			{
-				if (resources[ResourceWood] < base_data->cost_wood ||
-					resources[ResourceClay] < base_data->cost_clay ||
-					resources[ResourceIron] < base_data->cost_iron ||
-					resources[ResourceCrop] < base_data->cost_crop ||
-					resources[ResourceGold] < base_data->cost_gold ||
-					provide_population < consume_population + base_data->cost_population)
-					return false;
-
-				resources[ResourceWood] -= base_data->cost_wood;
-				resources[ResourceClay] -= base_data->cost_clay;
-				resources[ResourceIron] -= base_data->cost_iron;
-				resources[ResourceCrop] -= base_data->cost_crop;
-				resources[ResourceGold] -= base_data->cost_gold;
-				consume_population += base_data->cost_population;
-			}
-		}
-
-		auto& building = city.buildings[slot];
-		building.lv = 1;
-
-		return true;
-	}
-
 	bool upgrade_building(City& city, uint slot, bool free = false)
 	{
 		auto& building = city.buildings[slot];
@@ -410,9 +469,47 @@ struct Lord
 			}
 		}
 
+		switch (building.type)
+		{
+		case BuildingBarracks:
+		{
+			auto& data = barracks_datas[building.lv];
+			building.buys.resize(data.buys.size());
+			for (auto i = 0; i < data.buys.size(); i++)
+			{
+				auto& buy = building.buys[i];
+				buy.unit_id = data.buys[i];
+				buy.num = 0;
+			}
+		}
+			break;
+		}
 		building.lv++;
 
 		return true;
+	}
+
+	bool buy_unit(City& city, Building& building, uint id)
+	{
+		auto& buy = building.buys[id];
+		auto& unit_data = unit_datas[buy.unit_id];
+
+		if (resources[ResourceWood] < unit_data.cost_wood ||
+			resources[ResourceClay] < unit_data.cost_clay ||
+			resources[ResourceIron] < unit_data.cost_iron ||
+			resources[ResourceCrop] < unit_data.cost_crop ||
+			resources[ResourceGold] < unit_data.cost_gold ||
+			provide_population < consume_population + unit_data.cost_population)
+			return false;
+
+		resources[ResourceWood] -= unit_data.cost_wood;
+		resources[ResourceClay] -= unit_data.cost_clay;
+		resources[ResourceIron] -= unit_data.cost_iron;
+		resources[ResourceCrop] -= unit_data.cost_crop;
+		resources[ResourceGold] -= unit_data.cost_gold;
+		consume_population += unit_data.cost_population;
+
+		buy.num++;
 	}
 
 	uint get_production(ResourceType type)
@@ -428,11 +525,11 @@ struct Lord
 };
 std::vector<Lord> lords;
 
-Lord* main_player = nullptr;
-
 void add_lord(uint tile_id)
 {
 	Lord lord;
+	lord.id = lords.size();
+
 	lord.resources[ResourceWood] = 800;
 	lord.resources[ResourceClay] = 800;
 	lord.resources[ResourceIron] = 800;
@@ -443,21 +540,23 @@ void add_lord(uint tile_id)
 
 	City city;
 	city.tile_id = tile_id;
+	city.lord_id = lord.id;
 	city.buildings.resize(building_slots.size());
 	for (auto i = 0; i < building_slots.size(); i++)
 	{
 		auto type = building_slots[i].type;
 		city.buildings[i].type = type;
 		if (type == BuildingTownCenter)
-			lord.build_building(city, i, true);
+			lord.upgrade_building(city, i, true);
 	}
-	tiles[tile_id].type = TileCity;
+
+	auto& tile = tiles[tile_id];
+	tile.type = TileCity;
+	tile.lord_id = lord.id;
 
 	lord.cities.push_back(city);
 	lord.update_territories();
 	lords.push_back(lord);
-
-	main_player = &lords.front();
 }
 
 int search_lord_location()
@@ -468,26 +567,34 @@ int search_lord_location()
 		auto& tile = tiles[i];
 		if (tile.type == TileField)
 		{
-			auto ok = true;
-			for (auto& lord : lords)
+			if (tile.x > 0 && tile.y > 0 && tile.x < tile_cx - 1 && tile.y < tile_cy - 1)
 			{
-				for (auto& city : lord.cities)
+				auto ok = true;
+				for (auto& lord : lords)
 				{
-					if (distance(tiles[city.tile_id].pos, tile.pos) < tile_sz * 4.5f)
+					for (auto& city : lord.cities)
 					{
-						ok = false;
-						break;
+						if (distance(tiles[city.tile_id].pos, tile.pos) < tile_sz * 4.5f)
+						{
+							ok = false;
+							break;
+						}
 					}
 				}
+				if (ok)
+					candidates.push_back(i);
 			}
-			if (ok)
-				candidates.push_back(i);
 		}
 	}
 	if (candidates.empty())
 		return -1;
 	auto idx = linearRand(0, (int)candidates.size() - 1);
 	return candidates[idx];
+}
+
+City* search_random_hostile_city(uint lord_id)
+{
+
 }
 
 void Game::init()
@@ -521,7 +628,8 @@ void Game::init()
 			auto id = y * tile_cx + x;
 			auto& tile = tiles[id];
 			tile.id = id;
-			tile.pos = vec2(x * tile_sz * 0.75f, y * tile_sz) + vec2(0.f, 24.f);
+			tile.x = x; tile.y = y;
+			tile.pos = vec2(x * tile_sz * 0.75f, y * tile_sz) + vec2(0.f, 36.f);
 			tile.type = TileField;
 			if (x % 2 == 1)
 				tile.pos.y += tile_sz * 0.5f;
@@ -555,6 +663,103 @@ void Game::init()
 		}
 	}
 
+	if (auto sht = Sheet::get(L"assets/units.sht"); sht)
+	{
+		for (auto i = 0; i < sht->rows.size(); i++)
+		{
+			UnitData data;
+			auto& row = sht->rows[i];
+			data.name = sht->get_as_wstr(row, "name"_h);
+			data.cost_wood = sht->get_as<uint>(row, "cost_wood"_h);
+			data.cost_clay = sht->get_as<uint>(row, "cost_clay"_h);
+			data.cost_iron = sht->get_as<uint>(row, "cost_iron"_h);
+			data.cost_crop = sht->get_as<uint>(row, "cost_crop"_h);
+			data.cost_gold = sht->get_as<uint>(row, "cost_gold"_h);
+			data.cost_population = sht->get_as<uint>(row, "cost_population"_h);
+			data.required_barracks_lv = sht->get_as<uint>(row, "required_barracks_lv"_h);
+			data.hp = sht->get_as<uint>(row, "hp"_h);
+			data.atk = sht->get_as<uint>(row, "atk"_h);
+			unit_datas.push_back(data);
+		}
+	}
+	if (auto sht = Sheet::get(L"assets/building_slots.sht"); sht)
+	{
+		for (auto i = 0; i < sht->rows.size(); i++)
+		{
+			BuildingSlot slot;
+			auto& row = sht->rows[i];
+			slot.pos = sht->get_as<vec2>(row, "pos"_h);
+			slot.radius = sht->get_as<float>(row, "radius"_h);
+			auto building_name = sht->get_as_wstr(row, "building"_h);
+			for (auto j = 0; j < BuildingTypeCount; j++)
+			{
+				if (building_name == get_building_name((BuildingType)j))
+				{
+					slot.type = (BuildingType)j;
+					break;
+				}
+			}
+			building_slots.push_back(slot);
+		}
+	}
+	building_slots.push_back({ .type = BuildingTower });
+	building_slots.push_back({ .type = BuildingWall });
+	if (auto sht = Sheet::get(L"assets/town_center.sht"); sht)
+	{
+		for (auto i = 0; i < sht->rows.size(); i++)
+		{
+			TownCenterData data;
+			auto& row = sht->rows[i];
+			data.read(row, sht);
+			town_center_datas.push_back(data);
+		}
+	}
+	if (auto sht = Sheet::get(L"assets/house.sht"); sht)
+	{
+		for (auto i = 0; i < sht->rows.size(); i++)
+		{
+			HouseData data;
+			auto& row = sht->rows[i];
+			data.read(row, sht);
+			house_datas.push_back(data);
+		}
+	}
+	if (auto sht = Sheet::get(L"assets/barracks.sht"); sht)
+	{
+		for (auto i = 0; i < sht->rows.size(); i++)
+		{
+			BarracksData data;
+			auto& row = sht->rows[i];
+			data.read(row, sht);
+			for (auto j = 0; j < unit_datas.size(); j++)
+			{
+				auto& unit_data = unit_datas[j];
+				if (unit_data.required_barracks_lv <= i + 1)
+					data.buys.push_back(j);
+			}
+			barracks_datas.push_back(data);
+		}
+	}
+	if (auto sht = Sheet::get(L"assets/tower.sht"); sht)
+	{
+		for (auto i = 0; i < sht->rows.size(); i++)
+		{
+			TowerData data;
+			auto& row = sht->rows[i];
+			data.read(row, sht);
+			tower_datas.push_back(data);
+		}
+	}
+	if (auto sht = Sheet::get(L"assets/wall.sht"); sht)
+	{
+		for (auto i = 0; i < sht->rows.size(); i++)
+		{
+			WallData data;
+			auto& row = sht->rows[i];
+			data.read(row, sht);
+			wall_datas.push_back(data);
+		}
+	}
 	if (auto sht = Sheet::get(L"assets/woodcutter.sht"); sht)
 	{
 		for (auto i = 0; i < sht->rows.size(); i++)
@@ -595,28 +800,6 @@ void Game::init()
 			resource_field_datas[ResourceCrop].push_back(data);
 		}
 	}
-	if (auto sht = Sheet::get(L"assets/building_slots.sht"); sht)
-	{
-		for (auto i = 0; i < sht->rows.size(); i++)
-		{
-			BuildingSlot slot;
-			auto& row = sht->rows[i];
-			slot.pos = sht->get_as<vec2>(row, "pos"_h);
-			slot.radius = sht->get_as<float>(row, "radius"_h);
-			auto building_name = sht->get_as_wstr(row, "building"_h);
-			for (auto j = 0; j < BuildingTypeCount; j++)
-			{
-				if (building_name == get_building_name((BuildingType)j))
-				{
-					slot.type = (BuildingType)j;
-					break;
-				}
-			}
-			building_slots.push_back(slot);
-		}
-	}
-	building_slots.push_back({ .type = BuildingTower });
-	building_slots.push_back({ .type = BuildingWall });
 
 	if (auto id = search_lord_location(); id != -1)
 		add_lord(id);
@@ -626,12 +809,16 @@ void Game::init()
 
 void Game::on_render()
 {
+	if (lords.empty())
+		return;
+	auto& main_player = lords.front();
+
 	auto canvas = renderer->render_tasks.front()->canvas;
 
 	for (auto& tile : tiles)
 	{
 		canvas->add_image(img_tile_grass->get_view(), tile.pos, tile.pos + tile_sz, vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
-		//canvas->add_text(nullptr, 16, tile.pos + vec2(10.f), wstr(tile.id), cvec4(255));
+		canvas->add_text(nullptr, 16, tile.pos + vec2(10.f), wstr(tile.id), cvec4(255));
 	}
 	for (auto& lord : lords)
 	{
@@ -658,25 +845,22 @@ void Game::on_render()
 
 	auto screen_size = renderer->hud_screen_size();
 
-	if (main_player)
-	{
-		renderer->hud_begin(vec2(0.f, 0.f), vec2(screen_size.x, 20.f), cvec4(0, 0, 0, 255));
-		renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-		renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceWood]);
-		renderer->hud_text(std::format(L"{} +{}", main_player->resources[ResourceWood], main_player->get_production(ResourceWood)), 16);
-		renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceClay]);
-		renderer->hud_text(std::format(L"{} +{}", main_player->resources[ResourceClay], main_player->get_production(ResourceClay)), 16);
-		renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceIron]);
-		renderer->hud_text(std::format(L"{} +{}", main_player->resources[ResourceIron], main_player->get_production(ResourceIron)), 16);
-		renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
-		renderer->hud_text(std::format(L"{} +{}", main_player->resources[ResourceCrop], main_player->get_production(ResourceCrop)), 16);
-		renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceGold]);
-		renderer->hud_text(std::format(L"{}", main_player->resources[ResourceGold]), 16);
-		renderer->hud_image(vec2(18.f, 12.f), img_pop);
-		renderer->hud_text(std::format(L"{}/{}", main_player->consume_population, main_player->provide_population), 16);
-		renderer->hud_end_layout();
-		renderer->hud_end();
-	}
+	renderer->hud_begin(vec2(0.f, 0.f), vec2(screen_size.x, 20.f), cvec4(0, 0, 0, 255));
+	renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceWood]);
+	renderer->hud_text(std::format(L"{} +{}", main_player.resources[ResourceWood], main_player.get_production(ResourceWood)), 24);
+	renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceClay]);
+	renderer->hud_text(std::format(L"{} +{}", main_player.resources[ResourceClay], main_player.get_production(ResourceClay)), 24);
+	renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceIron]);
+	renderer->hud_text(std::format(L"{} +{}", main_player.resources[ResourceIron], main_player.get_production(ResourceIron)), 24);
+	renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceCrop]);
+	renderer->hud_text(std::format(L"{} +{}", main_player.resources[ResourceCrop], main_player.get_production(ResourceCrop)), 24);
+	renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceGold]);
+	renderer->hud_text(std::format(L"{}", main_player.resources[ResourceGold]), 24);
+	renderer->hud_image(vec2(27.f, 18.f), img_pop);
+	renderer->hud_text(std::format(L"{}/{}", main_player.consume_population, main_player.provide_population), 24);
+	renderer->hud_end_layout();
+	renderer->hud_end();
 
 	renderer->hud_begin(vec2(0.f, screen_size.y - 160.f), vec2(screen_size.x, 160.f), cvec4(0, 0, 0, 255));
 	auto rect = renderer->hud_hud_rect();
@@ -686,7 +870,7 @@ void Game::on_render()
 		switch (tile.type)
 		{
 		case TileField:
-			if (main_player && main_player->has_territory(selected_tile))
+			if (main_player.has_territory(selected_tile))
 			{
 				renderer->hud_begin_layout(HudHorizontal);
 
@@ -721,7 +905,7 @@ void Game::on_render()
 						renderer->hud_end_layout();
 
 						if (renderer->hud_button(L"Build", 18))
-							main_player->build_resource_field(selected_tile, type);
+							main_player.build_resource_field(selected_tile, type);
 					}
 					renderer->hud_end_layout();
 					renderer->hud_stroke_item();
@@ -739,6 +923,9 @@ void Game::on_render()
 		{
 			auto c = rect.a + vec2(100.f, 80.f);
 			canvas->add_circle_filled(c, 80.f, cvec4(255));
+
+			renderer->hud_begin_layout(HudHorizontal);
+			renderer->hud_rect(vec2(200.f, 160.f), cvec4(0));
 
 			vec2 tower_pos[6];
 			for (auto i = 0; i < 6; i++)
@@ -759,107 +946,170 @@ void Game::on_render()
 					break;
 				canvas->add_circle_filled(c + slot.pos, slot.radius, cvec4(255, 127, 127, 255));
 			}
-			if (main_player)
+			if (auto id = main_player.find_city(selected_tile); id != -1)
 			{
-				if (auto id = main_player->find_city(selected_tile); id != -1)
+				auto& city = main_player.cities[id];
+				for (auto i = 0; i < building_slots.size(); i++)
 				{
-					auto& city = main_player->cities[id];
+					auto& slot = building_slots[i];
+					auto& building = city.buildings[i];
+					if (building.lv > 0)
+						canvas->add_image(img_tile_house->get_view(), c + slot.pos - vec2(12.f), c + slot.pos + vec2(12.f), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
+				}
+
+				if (input->mpressed(Mouse_Left))
+				{
+					auto ok = false;
 					for (auto i = 0; i < building_slots.size(); i++)
 					{
 						auto& slot = building_slots[i];
-						auto& building = city.buildings[i];
-						if (building.lv > 0)
-							canvas->add_image(img_tile_house->get_view(), c + slot.pos - vec2(12.f), c + slot.pos + vec2(12.f), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
-					}
-
-					if (input->mpressed(Mouse_Left))
-					{
-						for (auto i = 0; i < building_slots.size(); i++)
+						if (slot.type > BuildingInTownEnd)
+							break;
+						if (distance(mpos, c + slot.pos) < slot.radius)
 						{
-							auto& slot = building_slots[i];
-							if (slot.type > BuildingInTownEnd)
-								break;
-							if (distance(mpos, c + slot.pos) < slot.radius)
+							selected_building_slot = i;
+							ok = true;
+							break;
+						}
+					}
+					if (!ok)
+					{
+						for (auto i = 0; i < 6; i++)
+						{
+							if (distance(mpos, tower_pos[i]) < 8.f)
 							{
-								selected_building_slot = i;
+								selected_building_slot = building_slots.size() - 2;
+								ok = true;
 								break;
 							}
 						}
-						if (selected_building_slot == -1)
-						{
-							for (auto i = 0; i < 6; i++)
-							{
-								if (distance(mpos, tower_pos[i]) < 8.f)
-								{
-									selected_building_slot = building_slots.size() - 2;
-									break;
-								}
-							}
-						}
-						if (selected_building_slot == -1)
-						{
-							if (auto d = distance(mpos, c); d > 70.f && d < 80.f)
-								selected_building_slot = building_slots.size() - 1;
-						}
 					}
-
-					if (selected_building_slot != -1)
+					if (!ok)
 					{
-						auto& building = city.buildings[selected_building_slot];
-						auto type = building_slots[selected_building_slot].type;
-						switch (type)
+						if (auto d = distance(mpos, c); d > 70.f && d < 80.f)
+							selected_building_slot = building_slots.size() - 1;
+					}
+				}
+
+				if (selected_building_slot != -1)
+				{
+					auto& building = city.buildings[selected_building_slot];
+					auto type = building_slots[selected_building_slot].type;
+					auto show_upgrade_building = [&]() {
+						if (auto next_level = get_building_base_data(type, building.lv); next_level)
 						{
-						case BuildingTownCenter:
-							renderer->hud_set_cursor(rect.a + vec2(180.f, 0.f));
-							renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
-							renderer->hud_text(L"Town Center");
+							renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+							renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceWood]);
+							renderer->hud_text(std::format(L"{}", next_level->cost_wood), 16);
+							renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceClay]);
+							renderer->hud_text(std::format(L"{}", next_level->cost_clay), 16);
+							renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceIron]);
+							renderer->hud_text(std::format(L"{}", next_level->cost_iron), 16);
+							renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
+							renderer->hud_text(std::format(L"{}", next_level->cost_crop), 16);
 							renderer->hud_end_layout();
-							if (auto next_level = get_building_base_data(type, building.lv); next_level)
+							renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+							renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceGold]);
+							renderer->hud_text(std::format(L"{}", next_level->cost_gold), 16);
+							renderer->hud_image(vec2(18.f, 12.f), img_pop);
+							renderer->hud_text(std::format(L"{}", next_level->cost_population), 16);
+							renderer->hud_end_layout();
+
+							if (renderer->hud_button(L"Upgrade", 18))
+								main_player.upgrade_building(city, selected_building_slot);
+						}
+						};
+					switch (type)
+					{
+					case BuildingTownCenter:
+						renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+						renderer->hud_text(std::format(L"Town Center LV: {}", building.lv));
+						show_upgrade_building();
+						renderer->hud_end_layout();
+						renderer->hud_stroke_item();
+						break;
+					case BuildingHouse:
+						renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+						renderer->hud_text(std::format(L"House LV: {}", building.lv));
+						show_upgrade_building();
+						renderer->hud_end_layout();
+						renderer->hud_stroke_item();
+						break;
+					case BuildingBarracks:
+					{
+						renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+						renderer->hud_text(std::format(L"Barracks LV: {}", building.lv));
+						show_upgrade_building();
+						renderer->hud_end_layout();
+						renderer->hud_stroke_item();
+
+						if (building.lv > 0)
+						{
+							for (auto i = 0; i < building.buys.size(); i++)
 							{
+								auto& buy = building.buys[i];
+								auto& unit_data = unit_datas[buy.unit_id];
+								renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+								renderer->hud_text(std::format(L"{} X {}", unit_data.name, buy.num));
+
+								renderer->hud_text(std::format(L"ATK: {}", unit_data.atk), 22);
+								renderer->hud_text(std::format(L"HP: {}", unit_data.hp), 22);
+
 								renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceWood]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_wood), 16);
+								renderer->hud_text(std::format(L"{}", unit_data.cost_wood), 16);
 								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceClay]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_clay), 16);
+								renderer->hud_text(std::format(L"{}", unit_data.cost_clay), 16);
 								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceIron]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_iron), 16);
+								renderer->hud_text(std::format(L"{}", unit_data.cost_iron), 16);
 								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_crop), 16);
+								renderer->hud_text(std::format(L"{}", unit_data.cost_crop), 16);
 								renderer->hud_end_layout();
 								renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceGold]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_gold), 16);
+								renderer->hud_text(std::format(L"{}", unit_data.cost_gold), 16);
 								renderer->hud_image(vec2(18.f, 12.f), img_pop);
-								renderer->hud_text(std::format(L"{}", next_level->cost_population), 16);
+								renderer->hud_text(std::format(L"{}", unit_data.cost_population), 16);
 								renderer->hud_end_layout();
 
-								if (renderer->hud_button(L"Upgrade", 18))
-									main_player->upgrade_building(city, selected_building_slot);
+								if (renderer->hud_button(L"Buy", 18))
+									main_player.buy_unit(city, building, i);
+
+								renderer->hud_end_layout();
+								renderer->hud_stroke_item();
 							}
-							renderer->hud_stroke_item();
-							break;
-						case BuildingTower:
-							renderer->hud_set_cursor(rect.a + vec2(180.f, 0.f));
-							renderer->hud_text(L"Tower");
-							break;
-						case BuildingWall:
-							renderer->hud_set_cursor(rect.a + vec2(180.f, 0.f));
-							renderer->hud_text(L"Wall");
-							break;
 						}
+					}
+					break;
+					case BuildingTower:
+						renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+						renderer->hud_text(std::format(L"Tower LV: {}", building.lv));
+						show_upgrade_building();
+						renderer->hud_end_layout();
+						renderer->hud_stroke_item();
+						break;
+					case BuildingWall:
+						renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+						renderer->hud_text(std::format(L"Wall LV: {}", building.lv));
+						show_upgrade_building();
+						renderer->hud_end_layout();
+						renderer->hud_stroke_item();
+						break;
 					}
 				}
 			}
+
+			renderer->hud_end_layout();
 		}
 			break;
 		case TileResourceField:
-			if (auto id = main_player ? main_player->find_resource_field(selected_tile) : -1; id != -1)
+			if (auto id = main_player.find_resource_field(selected_tile); id != -1)
 			{
-				auto& resource_field = main_player->resource_fields[id];
+				auto& resource_field = main_player.resource_fields[id];
 				if (!resource_field_datas[resource_field.type].empty())
 				{
 					renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
-					renderer->hud_text(get_resource_field_name(resource_field.type));
+					renderer->hud_text(std::format(L"{} LV: {}", get_resource_field_name(resource_field.type), resource_field.lv));
 					renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 					renderer->hud_text(L"Current Production: ", 22);
 					renderer->hud_image(vec2(20.f, 13.f), img_resources[resource_field.type]);
@@ -893,7 +1143,7 @@ void Game::on_render()
 						renderer->hud_end_layout();
 
 						if (renderer->hud_button(L"Upgrade", 18))
-							main_player->upgrade_resource_field(resource_field);
+							main_player.upgrade_resource_field(resource_field);
 					}
 					renderer->hud_end_layout();
 					renderer->hud_stroke_item();
@@ -917,12 +1167,41 @@ void Game::on_render()
 	}
 	renderer->hud_end();
 
+	renderer->hud_begin(vec2(screen_size.x - 160.f, screen_size.y - 300.f), vec2(160.f, 300.f), cvec4(0, 0, 0, 255));
+	if (state != GameNight)
+	{
+		if (renderer->hud_button(L"Start Battle"))
+			start_battle();
+	}
+	renderer->hud_end();
+
 	UniverseApplication::on_render();
 }
 
 void Game::on_gui()
 {
 
+}
+
+void Game::start_battle()
+{
+	if (state == GameNight)
+		return;
+	state = GameNight;
+
+	if (lords.size() < 2)
+		return;
+
+	for (auto& lord : lords)
+	{
+		lord.troops.clear();
+
+		for (auto& city : lord.cities)
+		{
+			Troop troop;
+
+		}
+	}
 }
 
 Game game;

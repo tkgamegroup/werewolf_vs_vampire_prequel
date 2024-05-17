@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<sheet name="building">
+	<columns>
+		<column type="D@uint" name="cost_wood" />
+		<column type="D@uint" name="cost_clay" />
+		<column type="D@uint" name="cost_iron" />
+		<column type="D@uint" name="cost_crop" />
+		<column type="D@uint" name="cost_gold" />
+		<column type="D@uint" name="cost_population" />
+	</columns>
+	<rows>
+		<row cost_wood="" cost_clay="" cost_iron="" cost_crop="" cost_gold="" cost_population="" />
+	</rows>
+</sheet>
