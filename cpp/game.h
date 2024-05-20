@@ -18,19 +18,24 @@ struct Unit
 
 struct Troop
 {
+	uint lord_id;
 	std::vector<Unit> units;
 	std::vector<uint> path;
 	uint idx = 0;
+};
+
+struct BattleTroop
+{
+	Troop* troop;
+	uint action_idx;
 };
 
 struct Game : UniverseApplication
 {
 	GameState state = GameDay;
 	void* ev_step_battle = nullptr;
-	Troop* battle_troop_left;
-	Troop* battle_troop_right;
-	int battle_action_index_left;
-	int battle_action_index_right;
+	BattleTroop battle_troops[2];
+	uint battle_action_side = 0;
 
 	void init();
 	void on_render() override;

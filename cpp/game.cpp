@@ -232,6 +232,7 @@ struct Buy
 
 struct Building
 {
+	uint slot;
 	BuildingType type;
 	uint lv = 0;
 	std::vector<Buy> buys;
@@ -315,6 +316,7 @@ graphics::ImagePtr img_pop;
 struct Lord
 {
 	uint id;
+	bool dead = false;
 
 	uint resources[ResourceTypeCount];
 	uint provide_population;
@@ -479,8 +481,9 @@ struct Lord
 		case BuildingBarracks:
 		{
 			auto& data = barracks_datas[building.lv];
+			auto old_buys_count = building.buys.size();
 			building.buys.resize(data.buys.size());
-			for (auto i = 0; i < data.buys.size(); i++)
+			for (auto i = old_buys_count; i < data.buys.size(); i++)
 			{
 				auto& buy = building.buys[i];
 				buy.id = data.buys[i];
@@ -530,7 +533,7 @@ struct Lord
 };
 std::vector<Lord> lords;
 
-void add_lord(uint tile_id)
+int add_lord(uint tile_id)
 {
 	Lord lord;
 	lord.id = lords.size();
@@ -550,7 +553,9 @@ void add_lord(uint tile_id)
 	for (auto i = 0; i < building_slots.size(); i++)
 	{
 		auto type = building_slots[i].type;
-		city.buildings[i].type = type;
+		auto& building = city.buildings[i];
+		building.slot = i;
+		building.type = type;
 		if (type == BuildingTownCenter)
 			lord.upgrade_building(city, i, true);
 	}
@@ -561,7 +566,9 @@ void add_lord(uint tile_id)
 
 	lord.cities.push_back(city);
 	lord.update_territories();
+	auto id = lords.size();
 	lords.push_back(lord);
+	return id;
 }
 
 int search_lord_location()
@@ -818,10 +825,27 @@ void Game::init()
 		}
 	}
 
-	if (auto id = search_lord_location(); id != -1)
-		add_lord(id);
-	if (auto id = search_lord_location(); id != -1)
-		add_lord(id);
+	if (auto tile_id = search_lord_location(); tile_id != -1)
+		add_lord(tile_id);
+	if (auto tile_id = search_lord_location(); tile_id != -1)
+	{
+		// give a barracks and some units to ai
+		if (auto id = add_lord(tile_id); id != -1)
+		{
+			auto& lord = lords[id];
+			auto& city = lord.cities.front();
+			for (auto& building : city.buildings)
+			{
+				if (building.type == BuildingBarracks)
+				{
+					lord.upgrade_building(city, building.slot, true);
+					if (!building.buys.empty())
+						building.buys[0].num = 3;
+					break;
+				}
+			}
+		}
+	}
 }
 
 void Game::on_render()
@@ -836,17 +860,14 @@ void Game::on_render()
 
 	if (state == GameBattle)
 	{
-		for (auto i = 0; i < battle_troop_left->units.size(); i++)
+		for (auto i = 0; i < 2; i++)
 		{
-			auto& unit = battle_troop_left->units[i];
-			auto& unit_data = unit_datas[unit.id];
-			canvas->add_text(nullptr, 16, vec2(20.f, i * 50.f), std::format(L"{} ATK: {} HP: {}", unit_data.name, unit.atk, unit.hp), cvec4(255));
-		}
-		for (auto i = 0; i < battle_troop_right->units.size(); i++)
-		{
-			auto& unit = battle_troop_right->units[i];
-			auto& unit_data = unit_datas[unit.id];
-			canvas->add_text(nullptr, 16, vec2(250.f, i * 50.f), std::format(L"{} ATK: {} HP: {}", unit_data.name, unit.atk, unit.hp), cvec4(255));
+			for (auto j = 0; j < battle_troops[i].troop->units.size(); j++)
+			{
+				auto& unit = battle_troops[i].troop->units[j];
+				auto& unit_data = unit_datas[unit.id];
+				canvas->add_text(nullptr, 24, vec2(i * 580.f + 20.f, j * 50.f + 50.f), std::format(L"{} ATK: {} HP: {}", unit_data.name, unit.atk, unit.hp), cvec4(255));
+			}
 		}
 	}
 	else
@@ -1260,6 +1281,7 @@ void Game::start_battle()
 			if (auto target_city = search_random_hostile_city(lord.id); target_city)
 			{
 				Troop troop;
+				troop.lord_id = lord.id;
 				troop.path = find_path(city.tile_id, target_city->tile_id);
 				if (!troop.path.empty())
 				{
@@ -1296,12 +1318,64 @@ void Game::step_battle()
 {
 	if (state == GameBattle)
 	{
+		if (battle_troops[0].troop->units.empty() || battle_troops[1].troop->units.empty())
+		{
+			for (auto i = 0; i < 2; i++)
+			{
+				if (battle_troops[i].troop->units.empty())
+				{
+					auto& lord = lords[battle_troops[i].troop->lord_id];
+					for (auto it = lord.troops.begin(); it != lord.troops.end(); it++)
+					{
+						if (&(*it) == battle_troops[i].troop)
+						{
+							lord.troops.erase(it);
+							break;
+						}
+					}
+				}
+			}
+			state = GameNight;
+			battle_troops[0].troop = battle_troops[1].troop = nullptr;
+			return;
+		}
+
+		auto unit_take_damage = [&](Unit& caster, Unit& target, uint damage) {
+			if (target.hp > damage)
+				target.hp -= damage;
+			else
+				target.hp = 0;
+		};
+
+		auto& action_troop = battle_troops[battle_action_side];
+		auto& other_troop = battle_troops[1 - battle_action_side];
+		auto& cast_unit = action_troop.troop->units[action_troop.action_idx];
+		auto& target_unit = other_troop.troop->units[linearRand(0, (int)other_troop.troop->units.size() - 1)];
+		unit_take_damage(cast_unit, target_unit, cast_unit.atk);
+
+		action_troop.action_idx++;
+		if (action_troop.action_idx >= action_troop.troop->units.size())
+			action_troop.action_idx = 0;
+		battle_action_side = 1 - battle_action_side;
+
+		for (auto i = 0; i < 2; i++)
+		{
+			auto& battle_troop = battle_troops[i];
+			for (auto j = 0; j < battle_troop.troop->units.size(); j++)
+			{
+				if (battle_troop.troop->units[j].hp == 0)
+				{
+					if (j < battle_troop.action_idx)
+						battle_troop.action_idx--;
+					battle_troop.troop->units.erase(battle_troop.troop->units.begin() + j);
+					j--;
+				}
+			}
+		}
 
 		return;
 	}
 
-	if (lords.size() < 2)
-		return;
 	for (auto i = 0; i < lords.size(); i++)
 	{
 		auto& lord = lords[i];
@@ -1318,8 +1392,9 @@ void Game::step_battle()
 						_troop.path[_troop.idx] == troop.path[troop.idx < troop.path.size() - 1 ? troop.idx + 1 : troop.idx])
 					{
 						state = GameBattle;
-						battle_troop_left = &troop;
-						battle_troop_right = &_troop;
+						battle_troops[0] = { &troop, 0 };
+						battle_troops[1] = { &_troop, 0 };
+						battle_action_side = 0;
 						return;
 					}
 				}
