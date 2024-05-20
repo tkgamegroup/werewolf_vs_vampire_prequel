@@ -176,6 +176,7 @@ std::vector<TownCenterData> town_center_datas;
 
 struct HouseData : BuildingBaseData
 {
+	uint provide_population;
 };
 std::vector<HouseData> house_datas;
 
@@ -478,6 +479,14 @@ struct Lord
 
 		switch (building.type)
 		{
+		case BuildingHouse:
+		{
+			auto& data = house_datas[building.lv];
+			if (building.lv > 0)
+				provide_population -= house_datas[building.lv - 1].provide_population;
+			provide_population += data.provide_population;
+		}
+			break;
 		case BuildingBarracks:
 		{
 			auto& data = barracks_datas[building.lv];
@@ -745,6 +754,7 @@ void Game::init()
 			HouseData data;
 			auto& row = sht->rows[i];
 			data.read(row, sht);
+			data.provide_population = sht->get_as<uint>(row, "provide_population"_h);
 			house_datas.push_back(data);
 		}
 	}

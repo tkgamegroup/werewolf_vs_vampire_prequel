@@ -7,6 +7,14 @@
 	</columns>
 	<rows>
 		<row pos="0,0" radius="8" building="Town Center" />
-		<row pos="12,-12" radius="8" building="Barracks" />
+		<row pos="50,0" radius="8" building="House" />
+		<row pos="-50,0" radius="8" building="House" />
+		<row pos="0,50" radius="8" building="House" />
+		<row pos="0,-50" radius="8" building="House" />
+		<row pos="40,40" radius="8" building="House" />
+		<row pos="-40,40" radius="8" building="House" />
+		<row pos="-40,-40" radius="8" building="House" />
+		<row pos="40,-40" radius="8" building="House" />
+		<row pos="20,-20" radius="8" building="Barracks" />
 	</rows>
 </sheet>

@@ -14,5 +14,7 @@
 	</columns>
 	<rows>
 		<row name="Legionnaire" cost_wood="120" cost_clay="100" cost_iron="150" cost_crop="30" cost_gold="332" cost_population="1" required_barracks_lv="1" hp="85" atk="40" />
+		<row name="Praetorian" cost_wood="100" cost_clay="130" cost_iron="160" cost_crop="70" cost_gold="292" cost_population="1" required_barracks_lv="1" hp="100" atk="30" />
+		<row name="Imperian" cost_wood="150" cost_clay="160" cost_iron="210" cost_crop="80" cost_gold="320" cost_population="1" required_barracks_lv="1" hp="65" atk="70" />
 	</rows>
 </sheet>
