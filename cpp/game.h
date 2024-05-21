@@ -22,6 +22,8 @@ struct Troop
 	std::vector<Unit> units;
 	std::vector<uint> path;
 	uint idx = 0;
+
+	float anim_time = 0.f;
 };
 
 struct BattleTroop
@@ -36,11 +38,12 @@ struct Game : UniverseApplication
 	void* ev_step_battle = nullptr;
 	BattleTroop battle_troops[2];
 	uint battle_action_side = 0;
+	float battle_anim_remain = 0;
 
 	void init();
 	void on_render() override;
 	void on_gui() override;
-	void new_data();
+	void new_day();
 	void start_battle();
 	void step_battle();
 };

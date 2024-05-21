@@ -9,10 +9,12 @@ cCameraPtr camera;
 graphics::ImagePtr img_tile_frame;
 graphics::ImagePtr img_tile_grass;
 graphics::ImagePtr img_tile_house;
+graphics::ImagePtr img_tile_castle;
 
 auto tile_cx = 18U;
 auto tile_cy = 9U;
 auto tile_sz = 50.f;
+auto tile_sz_y = tile_sz * 0.5f * 1.732050807569;
 
 enum TileType
 {
@@ -630,6 +632,11 @@ City* search_random_hostile_city(uint lord_id)
 	return &target_lord.cities[linearRand(0, (int)target_lord.cities.size() - 1)];
 }
 
+cvec4 hsv(float h, float s, float v, float a)
+{
+	return cvec4(vec4(rgbColor(vec3(h, s, v)), a) * 255.f);
+}
+
 void Game::init()
 {
 	create("Werewolf VS Vampire", uvec2(1280, 720), WindowStyleFrame, false, true, 
@@ -646,6 +653,7 @@ void Game::init()
 	img_tile_frame = graphics::Image::get(L"assets/HexTilesetv3.png_slices/00.png");
 	img_tile_grass = graphics::Image::get(L"assets/HexTilesetv3.png_slices/01.png");
 	img_tile_house = graphics::Image::get(L"assets/HexTilesetv3.png_slices/212.png");
+	img_tile_castle = graphics::Image::get(L"assets/HexTilesetv3.png_slices/216.png");
 	img_resources[ResourceWood] = graphics::Image::get(L"assets/icons/wood.png");
 	img_resources[ResourceClay] = graphics::Image::get(L"assets/icons/clay.png");
 	img_resources[ResourceIron] = graphics::Image::get(L"assets/icons/iron.png");
@@ -662,10 +670,10 @@ void Game::init()
 			auto& tile = tiles[id];
 			tile.id = id;
 			tile.x = x; tile.y = y;
-			tile.pos = vec2(x * tile_sz * 0.75f, y * tile_sz) + vec2(0.f, 36.f);
+			tile.pos = vec2(x * tile_sz * 0.75f, y * tile_sz_y) + vec2(0.f, 36.f);
 			tile.type = TileField;
 			if (x % 2 == 1)
-				tile.pos.y += tile_sz * 0.5f;
+				tile.pos.y += tile_sz_y * 0.5f;
 			
 			if (x % 2 == 0)
 			{
@@ -870,13 +878,25 @@ void Game::on_render()
 
 	if (state == GameBattle)
 	{
+		if (battle_anim_remain > 0.f)
+		{
+			battle_anim_remain -= delta_time;
+			return;
+		}
+
 		for (auto i = 0; i < 2; i++)
 		{
-			for (auto j = 0; j < battle_troops[i].troop->units.size(); j++)
+			auto& battle_troop = battle_troops[i];
+			auto& lord = lords[battle_troop.troop->lord_id];
+			for (auto j = 0; j < battle_troop.troop->units.size(); j++)
 			{
-				auto& unit = battle_troops[i].troop->units[j];
+				auto& unit = battle_troop.troop->units[j];
 				auto& unit_data = unit_datas[unit.id];
-				canvas->add_text(nullptr, 24, vec2(i * 580.f + 20.f, j * 50.f + 50.f), std::format(L"{} ATK: {} HP: {}", unit_data.name, unit.atk, unit.hp), cvec4(255));
+				auto pos = vec2(i * 580.f + 20.f, j * 60.f + 50.f);
+				if (battle_action_side == i && j == battle_troop.action_idx)
+					pos.x += 25.f * (i == 0 ? +1 : -1);
+				canvas->add_text(nullptr, 24, pos, unit_data.name, hsv(lord.id * 60.f, 0.5f, 1.f, 1.f));
+				canvas->add_text(nullptr, 24, pos + vec2(20.f, 28), std::format(L"ATK {} HP {}", unit.atk, unit.hp), cvec4(255));
 			}
 		}
 	}
@@ -884,33 +904,65 @@ void Game::on_render()
 	{
 		for (auto& tile : tiles)
 		{
-			canvas->add_image(img_tile_grass->get_view(), tile.pos, tile.pos + tile_sz, vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
-			canvas->add_text(nullptr, 16, tile.pos + vec2(10.f), wstr(tile.id), cvec4(255));
+			canvas->add_image(img_tile_grass->get_view(), tile.pos, tile.pos + vec2(tile_sz, tile_sz_y), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
+			//canvas->add_text(nullptr, 16, tile.pos + vec2(10.f), wstr(tile.id), cvec4(255));
 		}
 		for (auto& lord : lords)
 		{
 			for (auto& city : lord.cities)
 			{
 				auto& tile = tiles[city.tile_id];
-				canvas->add_image(img_tile_frame->get_view(), tile.pos, tile.pos + tile_sz, vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
-			}
-			for (auto id : lord.territories)
-			{
-				auto& tile = tiles[id];
-				canvas->add_image(img_tile_frame->get_view(), tile.pos, tile.pos + tile_sz, vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
+				canvas->add_image(img_tile_castle->get_view(), tile.pos, tile.pos + vec2(tile_sz, tile_sz_y), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
 			}
 			for (auto& field : lord.resource_fields)
 			{
-				auto pos = tiles[field.tile_id].pos + vec2(tile_sz) * 0.5f - vec2(18.f, 12.f);
+				auto pos = tiles[field.tile_id].pos + vec2(tile_sz, tile_sz_y) * 0.5f - vec2(18.f, 12.f);
 				canvas->add_image(img_resources[field.type]->get_view(), pos, pos + vec2(36.f, 24.f), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
+			}
+			{
+				std::vector<vec2> strips;
+				for (auto id : lord.territories)
+				{
+					auto& tile = tiles[id];
+					vec2 pos[6];
+					for (auto i = 0; i < 6; i++)
+						pos[i] = arc_point(tile.pos + vec2(tile_sz, tile_sz_y) * 0.5f, i * 60.f, tile_sz * 0.5f);
+					if (tile.tile_rb == -1 || !lord.has_territory(tile.tile_rb))
+						make_line_strips<2>(pos[0], pos[1], strips);
+					if (tile.tile_b == -1 || !lord.has_territory(tile.tile_b))
+						make_line_strips<2>(pos[1], pos[2], strips);
+					if (tile.tile_lb == -1 || !lord.has_territory(tile.tile_lb))
+						make_line_strips<2>(pos[2], pos[3], strips);
+					if (tile.tile_lt == -1 || !lord.has_territory(tile.tile_lt))
+						make_line_strips<2>(pos[3], pos[4], strips);
+					if (tile.tile_t == -1 || !lord.has_territory(tile.tile_t))
+						make_line_strips<2>(pos[4], pos[5], strips);
+					if (tile.tile_rt == -1 || !lord.has_territory(tile.tile_rt))
+						make_line_strips<2>(pos[5], pos[0], strips);
+				}
+				canvas->path = strips;
+				canvas->stroke(2.f, hsv(lord.id * 60.f, 0.5f, 1.f, 0.5f), false);
 			}
 			for (auto& troop : lord.troops)
 			{
 				for (auto id : troop.path)
 					canvas->path.push_back(tiles[id].pos + vec2(tile_sz) * 0.5f);
-				canvas->stroke(4.f, cvec4(255, 255, 127, 255), false);
+				canvas->stroke(2.f, hsv(lord.id * 60.f, 0.5f, 0.8f, 0.8f), false);
+				for (auto i = 0; i < troop.path.size() - 1; i++)
+				{
+					for (auto j = 0; j < 4; j++)
+					{
+						if (abs(int(i * 4 + j - troop.anim_time * 12.f) % 20) < 4)
+						{
+							auto a = tiles[troop.path[i]].pos;
+							auto b = tiles[troop.path[i + 1]].pos;
+							canvas->add_circle_filled(mix(a, b, j / 4.f) + vec2(tile_sz) * 0.5f, 3.f, hsv(lord.id * 60.f, 0.5f, 0.8f, 0.8f));
+						}
+					}
+				}
+				troop.anim_time += delta_time;
 
-				canvas->add_circle_filled(tiles[troop.path[troop.idx]].pos + vec2(tile_sz) * 0.5f, 8.f, cvec4(255, 200, 127, 255));
+				canvas->add_circle_filled(tiles[troop.path[troop.idx]].pos + vec2(tile_sz) * 0.5f, 6.f, hsv(lord.id * 60.f, 0.5f, 1.f, 1.f));
 			}
 		}
 
@@ -969,7 +1021,7 @@ void Game::on_render()
 					renderer->hud_begin_layout(HudHorizontal);
 
 					auto show_build_resource_field = [&](ResourceType type) {
-						renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+						renderer->hud_begin_layout(HudVertical, vec2(220.f, 150.f));
 						renderer->hud_text(get_resource_field_name(type));
 						if (!resource_field_datas[type].empty())
 						{
@@ -1116,22 +1168,31 @@ void Game::on_render()
 						switch (type)
 						{
 						case BuildingTownCenter:
-							renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+							renderer->hud_begin_layout(HudVertical, vec2(220.f, 150.f));
 							renderer->hud_text(std::format(L"Town Center LV: {}", building.lv));
 							show_upgrade_building();
 							renderer->hud_end_layout();
 							renderer->hud_stroke_item();
 							break;
 						case BuildingHouse:
-							renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+						{
+							renderer->hud_begin_layout(HudVertical, vec2(220.f, 150.f));
 							renderer->hud_text(std::format(L"House LV: {}", building.lv));
+							if (building.lv > 0)
+							{
+								auto& data = house_datas[building.lv - 1];
+								renderer->hud_text(std::format(L"Current Provide Population: {}", data.provide_population), 22);
+							}
+							auto next_level = house_datas[building.lv];
+							renderer->hud_text(std::format(L"Level {} Provide Population: {}", building.lv + 1, next_level.provide_population), 22);
 							show_upgrade_building();
 							renderer->hud_end_layout();
 							renderer->hud_stroke_item();
+						}
 							break;
 						case BuildingBarracks:
 						{
-							renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+							renderer->hud_begin_layout(HudVertical, vec2(220.f, 150.f));
 							renderer->hud_text(std::format(L"Barracks LV: {}", building.lv));
 							show_upgrade_building();
 							renderer->hud_end_layout();
@@ -1143,7 +1204,7 @@ void Game::on_render()
 								{
 									auto& buy = building.buys[i];
 									auto& unit_data = unit_datas[buy.id];
-									renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+									renderer->hud_begin_layout(HudVertical, vec2(220.f, 150.f));
 									renderer->hud_text(std::format(L"{} X {}", unit_data.name, buy.num));
 
 									renderer->hud_text(std::format(L"ATK: {}", unit_data.atk), 22);
@@ -1176,14 +1237,14 @@ void Game::on_render()
 						}
 							break;
 						case BuildingTower:
-							renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+							renderer->hud_begin_layout(HudVertical, vec2(220.f, 150.f));
 							renderer->hud_text(std::format(L"Tower LV: {}", building.lv));
 							show_upgrade_building();
 							renderer->hud_end_layout();
 							renderer->hud_stroke_item();
 							break;
 						case BuildingWall:
-							renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+							renderer->hud_begin_layout(HudVertical, vec2(220.f, 150.f));
 							renderer->hud_text(std::format(L"Wall LV: {}", building.lv));
 							show_upgrade_building();
 							renderer->hud_end_layout();
@@ -1202,7 +1263,7 @@ void Game::on_render()
 					auto& resource_field = main_player.resource_fields[id];
 					if (!resource_field_datas[resource_field.type].empty())
 					{
-						renderer->hud_begin_layout(HudVertical, vec2(200.f, 150.f));
+						renderer->hud_begin_layout(HudVertical, vec2(220.f, 150.f));
 						renderer->hud_text(std::format(L"{} LV: {}", get_resource_field_name(resource_field.type), resource_field.lv));
 						renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 						renderer->hud_text(L"Current Production: ", 22);
@@ -1265,7 +1326,7 @@ void Game::on_gui()
 
 }
 
-void Game::new_data()
+void Game::new_day()
 {
 	for (auto i = 1; i < lords.size(); i++)
 	{
@@ -1418,6 +1479,42 @@ void Game::step_battle()
 		{
 			if (troop.idx < troop.path.size() - 1)
 				troop.idx++;
+		}
+	}
+
+	for (auto& lord : lords)
+	{
+		for (auto it = lord.troops.begin(); it != lord.troops.end(); )
+		{
+			if (it->idx == it->path.size() - 1)
+				it = lord.troops.erase(it);
+			else
+				it++;
+		}
+	}
+
+	for (auto i = 0; i < lords.size(); i++)
+	{
+		auto& lord = lords[i];
+		for (auto j = 0; j < lord.troops.size(); j++)
+		{
+			auto& troop = lord.troops[j];
+			for (auto ii = i + 1; ii < lords.size(); ii++)
+			{
+				auto& _lord = lords[ii];
+				for (auto jj = 0; jj < _lord.troops.size(); jj++)
+				{
+					auto& _troop = _lord.troops[jj];
+					if (troop.path[troop.idx] == _troop.path[_troop.idx])
+					{
+						state = GameBattle;
+						battle_troops[0] = { &troop, 0 };
+						battle_troops[1] = { &_troop, 0 };
+						battle_action_side = 0;
+						return;
+					}
+				}
+			}
 		}
 	}
 }
