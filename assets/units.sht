@@ -11,9 +11,11 @@
 		<column type="D@uint" name="required_barracks_lv" />
 		<column type="D@uint" name="hp" />
 		<column type="D@uint" name="atk" />
+		<column type="D@uint" name="double_attack" />
+		<column type="D@uint" name="focus_sash" />
 	</columns>
 	<rows>
-		<row name="Legionnaire" cost_wood="120" cost_clay="100" cost_iron="150" cost_crop="30" cost_gold="332" cost_population="1" required_barracks_lv="1" hp="9" atk="4" />
+		<row name="Legionnaire" cost_wood="120" cost_clay="100" cost_iron="150" cost_crop="30" cost_gold="332" cost_population="1" required_barracks_lv="1" hp="9" atk="4" double_attack="1" />
 		<row name="Praetorian" cost_wood="100" cost_clay="130" cost_iron="160" cost_crop="70" cost_gold="292" cost_population="1" required_barracks_lv="1" hp="10" atk="3" />
 		<row name="Imperian" cost_wood="150" cost_clay="160" cost_iron="210" cost_crop="80" cost_gold="320" cost_population="1" required_barracks_lv="1" hp="7" atk="7" />
 	</rows>

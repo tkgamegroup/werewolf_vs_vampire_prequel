@@ -31,17 +31,39 @@ enum ResourceType
 	ResourceTypeCount
 };
 
+enum BuildingType
+{
+	BuildingTownCenter,
+	BuildingHouse,
+	BuildingBarracks,
+	BuildingTower,
+	BuildingWall,
+
+	BuildingTypeCount,
+	BuildingInTownBegin = BuildingTownCenter,
+	BuildingInTownEnd = BuildingBarracks,
+};
+
 cCameraPtr camera;
 
 graphics::ImagePtr img_be_hit;
 
 graphics::ImagePtr img_tile_frame;
 graphics::ImagePtr img_tile_grass;
-graphics::ImagePtr img_tile_house;
 graphics::ImagePtr img_tile_castle;
+
+graphics::ImagePtr img_city;
+graphics::ImagePtr img_wall;
+graphics::ImagePtr img_ground;
+graphics::ImagePtr img_town_center;
+graphics::ImagePtr img_house;
+graphics::ImagePtr img_barracks;
+graphics::ImagePtr img_tower;
 
 graphics::ImagePtr img_resources[ResourceTypeCount] = {};
 graphics::ImagePtr img_population;
+
+graphics::SamplerPtr sp_repeat;
 
 auto tile_cx = 18U;
 auto tile_cy = 9U;
@@ -145,22 +167,11 @@ struct UnitData
 	uint required_barracks_lv;
 	uint hp;
 	uint atk;
+	int double_attack = 0;
+	int focus_sash = 0;
 	graphics::ImagePtr icon = nullptr;
 };
 std::vector<UnitData> unit_datas;
-
-enum BuildingType
-{
-	BuildingTownCenter,
-	BuildingHouse,
-	BuildingBarracks,
-	BuildingTower,
-	BuildingWall,
-
-	BuildingTypeCount,
-	BuildingInTownBegin = BuildingTownCenter,
-	BuildingInTownEnd = BuildingBarracks,
-};
 
 const wchar_t* get_building_name(BuildingType type)
 {
@@ -331,6 +342,9 @@ struct Unit
 	uint id;
 	int hp;
 	int atk;
+
+	int double_attack = 0;
+	int focus_sash = 0;
 };
 
 struct Troop
@@ -351,6 +365,7 @@ struct BattleTroop
 		vec3 pos;
 		uint damage = 0;
 		float damage_label_remain = 0.f;
+		std::wstring state_text;
 
 		void take_damage(uint _damage)
 		{
@@ -747,6 +762,8 @@ void start_battle()
 									unit.id = buy.id;
 									unit.atk = unit_data.atk;
 									unit.hp = unit_data.hp;
+									unit.double_attack = unit_data.double_attack;
+									unit.focus_sash = unit_data.focus_sash;
 								}
 							}
 						}
@@ -900,26 +917,66 @@ void step_battle()
 
 	auto& action_troop = battle_troops[battle_action_side];
 	auto& other_troop = battle_troops[1 - battle_action_side];
-	auto& cast_unit = action_troop.troop->units[action_troop.action_idx];
+	auto& caster = action_troop.troop->units[action_troop.action_idx];
 	auto target_idx = linearRand(0, (int)other_troop.troop->units.size() - 1);
-	auto& target_unit = other_troop.troop->units[target_idx];
-	auto target_damage = cast_unit.atk;
-	auto caster_damage = target_unit.atk;
-	unit_take_damage(cast_unit, target_unit, target_damage);
-	unit_take_damage(target_unit, cast_unit, caster_damage);
-
+	auto& target = other_troop.troop->units[target_idx];
 	auto& cast_unit_display = action_troop.unit_displays[action_troop.action_idx];
 	auto& target_unit_display = other_troop.unit_displays[target_idx];
+
+	if (caster.double_attack > 0)
 	{
-		auto id = game.tween->begin(&cast_unit_display.pos, nullptr, nullptr, nullptr);
-		game.tween->move_to(id, mix(cast_unit_display.pos, target_unit_display.pos, 0.9f), 0.3f);
-		game.tween->set_callback(id, [&, caster_damage, target_damage]() {
-			cast_unit_display.take_damage(caster_damage);
-			target_unit_display.take_damage(target_damage);
-		});
-		game.tween->move_to(id, cast_unit_display.pos, 0.3f);
-		game.tween->end(id);
-		anim_remain = 1.f;
+		auto double_attacked = false;
+		auto target_damage = caster.atk;
+		auto caster_damage = target.atk;
+		unit_take_damage(caster, target, target_damage);
+		unit_take_damage(target, caster, caster_damage);
+		if (caster.hp > 0 && target.hp > 0)
+		{
+			unit_take_damage(caster, target, target_damage);
+			unit_take_damage(target, caster, caster_damage);
+			double_attacked = true;
+		}
+
+		{
+			auto id = game.tween->begin(&cast_unit_display.pos, nullptr, nullptr, nullptr);
+			auto target_pos = mix(cast_unit_display.pos, target_unit_display.pos, 0.9f);
+			game.tween->move_to(id, target_pos, 0.3f);
+			game.tween->set_callback(id, [&, caster_damage, target_damage]() {
+				cast_unit_display.take_damage(caster_damage);
+				target_unit_display.take_damage(target_damage);
+			});
+			if (double_attacked)
+			{
+				game.tween->move_to(id, mix(cast_unit_display.pos, target_unit_display.pos, 0.7f), 0.1f);
+				game.tween->move_to(id, target_pos, 0.1f);
+				game.tween->set_callback(id, [&, caster_damage, target_damage]() {
+					cast_unit_display.take_damage(caster_damage);
+					target_unit_display.take_damage(target_damage);
+				});
+			}
+			game.tween->move_to(id, cast_unit_display.pos, 0.3f);
+			game.tween->end(id);
+			anim_remain = 1.2f;
+		}
+	}
+	else
+	{
+		auto target_damage = caster.atk;
+		auto caster_damage = target.atk;
+		unit_take_damage(caster, target, target_damage);
+		unit_take_damage(target, caster, caster_damage);
+
+		{
+			auto id = game.tween->begin(&cast_unit_display.pos, nullptr, nullptr, nullptr);
+			game.tween->move_to(id, mix(cast_unit_display.pos, target_unit_display.pos, 0.9f), 0.3f);
+			game.tween->set_callback(id, [&, caster_damage, target_damage]() {
+				cast_unit_display.take_damage(caster_damage);
+				target_unit_display.take_damage(target_damage);
+			});
+			game.tween->move_to(id, cast_unit_display.pos, 0.3f);
+			game.tween->end(id);
+			anim_remain = 1.f;
+		}
 	}
 
 	action_troop.action_idx++;
@@ -959,14 +1016,22 @@ void Game::init()
 	img_be_hit = graphics::Image::get(L"assets/be_hit.png");
 	img_tile_frame = graphics::Image::get(L"assets/HexTilesetv3.png_slices/00.png");
 	img_tile_grass = graphics::Image::get(L"assets/HexTilesetv3.png_slices/01.png");
-	img_tile_house = graphics::Image::get(L"assets/HexTilesetv3.png_slices/212.png");
 	img_tile_castle = graphics::Image::get(L"assets/HexTilesetv3.png_slices/216.png");
+	img_city = graphics::Image::get(L"assets/city.png");
+	img_wall = graphics::Image::get(L"assets/wall.png");
+	img_ground = graphics::Image::get(L"assets/ground.png");
+	img_town_center = graphics::Image::get(L"assets/town_center.png");
+	img_house = graphics::Image::get(L"assets/house.png");
+	img_barracks = graphics::Image::get(L"assets/barracks.png");
+	img_tower = graphics::Image::get(L"assets/tower.png");
 	img_resources[ResourceWood] = graphics::Image::get(L"assets/icons/wood.png");
 	img_resources[ResourceClay] = graphics::Image::get(L"assets/icons/clay.png");
 	img_resources[ResourceIron] = graphics::Image::get(L"assets/icons/iron.png");
 	img_resources[ResourceCrop] = graphics::Image::get(L"assets/icons/crop.png");
 	img_resources[ResourceGold] = graphics::Image::get(L"assets/icons/gold.png");
 	img_population = graphics::Image::get(L"assets/icons/population.png");
+
+	sp_repeat = graphics::Sampler::get(graphics::FilterLinear, graphics::FilterLinear, false, graphics::AddressRepeat);
 
 	tiles.resize(tile_cx * tile_cy);
 	for (auto y = 0; y < tile_cy; y++)
@@ -1027,6 +1092,8 @@ void Game::init()
 			data.required_barracks_lv = sht->get_as<uint>(row, "required_barracks_lv"_h);
 			data.hp = sht->get_as<uint>(row, "hp"_h);
 			data.atk = sht->get_as<uint>(row, "atk"_h);
+			data.double_attack = sht->get_as<uint>(row, "double_attack"_h);
+			data.focus_sash = sht->get_as<uint>(row, "focus_sash"_h);
 			data.icon = graphics::Image::get(L"assets/icons/troop/" + data.name + L".png");
 			unit_datas.push_back(data);
 		}
@@ -1220,6 +1287,8 @@ void Game::on_render()
 					canvas->add_image(img_be_hit->get_view(), pos, pos + vec2(64.f), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
 					canvas->add_text(nullptr, 40, pos + vec2(16.f), std::format(L"-{}", display.damage), cvec4(0, 0, 0, 255));
 					display.damage_label_remain -= delta_time;
+					if (display.damage_label_remain <= 0.f)
+						display.damage = 0;
 				}
 			}
 		}
@@ -1236,7 +1305,7 @@ void Game::on_render()
 			for (auto& city : lord.cities)
 			{
 				auto& tile = tiles[city.tile_id];
-				canvas->add_image(img_tile_castle->get_view(), tile.pos, tile.pos + vec2(tile_sz, tile_sz_y), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
+				canvas->add_image(img_city->get_view(), tile.pos, tile.pos + vec2(tile_sz, tile_sz_y), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
 			}
 			for (auto& field : lord.resource_fields)
 			{
@@ -1309,30 +1378,66 @@ void Game::on_render()
 		renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceWood]);
 		renderer->hud_text(std::format(L"{} +{}", main_player.resources[ResourceWood], main_player.get_production(ResourceWood)), 24);
 		renderer->hud_end_layout();
+		if (renderer->hud_item_hovered())
+		{
+			renderer->hud_begin(mpos + vec2(0.f, 10.f));
+			renderer->hud_text(std::format(L"Wood: {}\nProduction: {}", main_player.resources[ResourceWood], main_player.get_production(ResourceWood)));
+			renderer->hud_end();
+		}
 		renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 		renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceClay]);
 		renderer->hud_text(std::format(L"{} +{}", main_player.resources[ResourceClay], main_player.get_production(ResourceClay)), 24);
 		renderer->hud_end_layout();
+		if (renderer->hud_item_hovered())
+		{
+			renderer->hud_begin(mpos + vec2(0.f, 10.f));
+			renderer->hud_text(std::format(L"Clay: {}\nProduction: {}", main_player.resources[ResourceClay], main_player.get_production(ResourceClay)));
+			renderer->hud_end();
+		}
 		renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 		renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceIron]);
 		renderer->hud_text(std::format(L"{} +{}", main_player.resources[ResourceIron], main_player.get_production(ResourceIron)), 24);
 		renderer->hud_end_layout();
+		if (renderer->hud_item_hovered())
+		{
+			renderer->hud_begin(mpos + vec2(0.f, 10.f));
+			renderer->hud_text(std::format(L"Iron: {}\nProduction: {}", main_player.resources[ResourceIron], main_player.get_production(ResourceIron)));
+			renderer->hud_end();
+		}
 		renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 		renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceCrop]);
 		renderer->hud_text(std::format(L"{} +{}", main_player.resources[ResourceCrop], main_player.get_production(ResourceCrop)), 24);
 		renderer->hud_end_layout();
+		if (renderer->hud_item_hovered())
+		{
+			renderer->hud_begin(mpos + vec2(0.f, 10.f));
+			renderer->hud_text(std::format(L"Crop: {}\nProduction: {}", main_player.resources[ResourceCrop], main_player.get_production(ResourceCrop)));
+			renderer->hud_end();
+		}
 		renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 		renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceGold]);
 		renderer->hud_text(std::format(L"{}", main_player.resources[ResourceGold]), 24);
 		renderer->hud_end_layout();
+		if (renderer->hud_item_hovered())
+		{
+			renderer->hud_begin(mpos + vec2(0.f, 10.f));
+			renderer->hud_text(std::format(L"Gold: {}", main_player.resources[ResourceGold]));
+			renderer->hud_end();
+		}
 		renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 		renderer->hud_image(vec2(27.f, 18.f), img_population);
 		renderer->hud_text(std::format(L"{}/{}", main_player.consume_population, main_player.provide_population), 24);
 		renderer->hud_end_layout();
+		if (renderer->hud_item_hovered())
+		{
+			renderer->hud_begin(mpos + vec2(0.f, 10.f));
+			renderer->hud_text(std::format(L"Population\nProvide: {}\nConsume: {}", main_player.provide_population, main_player.consume_population));
+			renderer->hud_end();
+		}
 		renderer->hud_end_layout();
 		renderer->hud_end();
 
-		auto bottom_pannel_height = 200.f;
+		auto bottom_pannel_height = 250.f;
 		renderer->hud_begin(vec2(0.f, screen_size.y - bottom_pannel_height), vec2(screen_size.x, bottom_pannel_height), cvec4(0, 0, 0, 255));
 		auto rect = renderer->hud_hud_rect();
 		if (selected_tile != -1)
@@ -1392,74 +1497,136 @@ void Game::on_render()
 				break;
 			case TileCity:
 			{
-				auto c = rect.a + vec2(100.f, 80.f);
-				canvas->add_circle_filled(c, 80.f, cvec4(255));
+				auto circle_sz = 120.f;
+				auto c = rect.a + vec2(circle_sz + 20.f, circle_sz);
+				vec2 corner_pos[6];
+				vec2 wall_rect[4 * 6];
+				for (auto i = 0; i < 6; i++)
+					corner_pos[i] = arc_point(c, i * 60.f, circle_sz);
+				for (auto i = 0; i < 6; i++)
+				{
+					auto a = corner_pos[i];
+					auto b = corner_pos[i + 1 == 6 ? 0 : i + 1];
+					auto d = normalize(b - a);
+					auto n = vec2(d.y, -d.x);
+					wall_rect[4 * i + 0] = a - n * 4.f;
+					wall_rect[4 * i + 1] = a + n * 4.f;
+					wall_rect[4 * i + 2] = b + n * 4.f;
+					wall_rect[4 * i + 3] = b - n * 4.f;
+				}
+
+				auto hovering_slot = -1;
+
+				if (auto id = main_player.find_city(selected_tile); id != -1)
+				{
+					auto& city = main_player.cities[id];
+
+					auto ok = false;
+					for (auto i = 0; i < building_slots.size(); i++)
+					{
+						auto& slot = building_slots[i];
+						if (slot.type > BuildingInTownEnd)
+							break;
+						if (distance(mpos, c + slot.pos) < slot.radius)
+						{
+							hovering_slot = i;
+							ok = true;
+							break;
+						}
+					}
+					if (!ok)
+					{
+						for (auto i = 0; i < 6; i++)
+						{
+							if (distance(mpos, corner_pos[i]) < 8.f)
+							{
+								hovering_slot = building_slots.size() - 2;
+								ok = true;
+								break;
+							}
+						}
+					}
+					if (!ok)
+					{
+						for (auto i = 0; i < 6; i++)
+						{
+							if (convex_contains(mpos, { &wall_rect[4 * i], &wall_rect[4 * i + 4] }))
+								hovering_slot = building_slots.size() - 1;
+						}
+					}
+				}
+
+				{
+					std::vector<vec2> pts;
+					std::vector<vec2> uvs;
+					pts.resize(6);
+					uvs.resize(6);
+					for (auto i = 0; i < 6; i++)
+					{
+						pts[i] = corner_pos[i];
+						uvs[i] = (corner_pos[i] - c + vec2(circle_sz)) / circle_sz * 3.f;
+					}
+					canvas->add_image_polygon(img_ground->get_view(), pts, uvs, cvec4(255), sp_repeat);
+				}
+				for (auto i = 0; i < 6; i++)
+				{
+					canvas->add_image_polygon(img_wall->get_view(), { wall_rect[4 * i + 0], wall_rect[4 * i + 3], wall_rect[4 * i + 2], wall_rect[4 * i + 1] },
+						{ vec2(0.f, 1.f), vec2(2.f, 1.f), vec2(2.f, 0.f), vec2(0.f, 0.f) }, hovering_slot == building_slots.size() - 1 ? cvec4(127, 127, 127, 255) : cvec4(255), sp_repeat);
+				}
 
 				renderer->hud_begin_layout(HudHorizontal);
-				renderer->hud_rect(vec2(200.f, 160.f), cvec4(0));
-
-				vec2 tower_pos[6];
-				for (auto i = 0; i < 6; i++)
-					tower_pos[i] = arc_point(c, i * 60.f, 80.f);
-
-				auto& path = canvas->path;
-				for (auto i = 0; i < 6; i++)
-					path.push_back(tower_pos[i]);
-				canvas->stroke(4.f, cvec4(255, 127, 127, 255), true);
+				renderer->hud_rect(vec2(circle_sz * 2.f + 28.f, bottom_pannel_height - 8.f), cvec4(0));
 
 				for (auto i = 0; i < 6; i++)
-					canvas->add_circle_filled(tower_pos[i], 8.f, cvec4(255, 80, 80, 255));
+				{
+					auto p = corner_pos[i];
+					auto sz = vec2(img_tower->extent) * 0.5f;
+					p = p - vec2(sz.x * 0.5f, sz.y * 0.8f);
+					canvas->add_image(img_tower->get_view(), p, p + sz, vec4(0.f, 0.f, 1.f, 1.f), hovering_slot == building_slots.size() - 2 ? cvec4(127, 127, 127, 255) : cvec4(255));
+				}
 
 				for (auto i = 0; i < building_slots.size(); i++)
 				{
 					auto& slot = building_slots[i];
 					if (slot.type > BuildingInTownEnd)
 						break;
-					canvas->add_circle_filled(c + slot.pos, slot.radius, cvec4(255, 127, 127, 255));
+					switch (slot.type)
+					{
+					case BuildingTownCenter:
+					{
+						auto p = c + slot.pos;
+						auto sz = vec2(img_town_center->extent) * 0.5f;
+						p = p - vec2(sz.x * 0.5f, sz.y * 0.8f);
+						canvas->add_image(img_town_center->get_view(), p, p + sz, vec4(0.f, 0.f, 1.f, 1.f), hovering_slot == i ? cvec4(127, 127, 127, 255) : cvec4(255));
+					}
+						break;
+					case BuildingHouse:
+					{
+						auto p = c + slot.pos;
+						auto sz = vec2(img_house->extent) * 0.5f;
+						p = p - vec2(sz.x * 0.5f, sz.y * 0.8f);
+						canvas->add_image(img_house->get_view(), p, p + sz, vec4(0.f, 0.f, 1.f, 1.f), hovering_slot == i ? cvec4(127, 127, 127, 255) : cvec4(255));
+					}
+						break;
+					case BuildingBarracks:
+					{
+						auto p = c + slot.pos;
+						auto sz = vec2(img_barracks->extent) * 0.5f;
+						p = p - vec2(sz.x * 0.5f, sz.y * 0.8f);
+						canvas->add_image(img_barracks->get_view(), p, p + sz, vec4(0.f, 0.f, 1.f, 1.f), hovering_slot == i ? cvec4(127, 127, 127, 255) : cvec4(255));
+					}
+						break;
+					}
 				}
+
 				if (auto id = main_player.find_city(selected_tile); id != -1)
 				{
 					auto& city = main_player.cities[id];
-					for (auto i = 0; i < building_slots.size(); i++)
-					{
-						auto& slot = building_slots[i];
-						auto& building = city.buildings[i];
-						if (building.lv > 0)
-							canvas->add_image(img_tile_house->get_view(), c + slot.pos - vec2(12.f), c + slot.pos + vec2(12.f), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
-					}
 
 					if (input->mpressed(Mouse_Left))
 					{
-						auto ok = false;
-						for (auto i = 0; i < building_slots.size(); i++)
-						{
-							auto& slot = building_slots[i];
-							if (slot.type > BuildingInTownEnd)
-								break;
-							if (distance(mpos, c + slot.pos) < slot.radius)
-							{
-								selected_building_slot = i;
-								ok = true;
-								break;
-							}
-						}
-						if (!ok)
-						{
-							for (auto i = 0; i < 6; i++)
-							{
-								if (distance(mpos, tower_pos[i]) < 8.f)
-								{
-									selected_building_slot = building_slots.size() - 2;
-									ok = true;
-									break;
-								}
-							}
-						}
-						if (!ok)
-						{
-							if (auto d = distance(mpos, c); d > 70.f && d < 80.f)
-								selected_building_slot = building_slots.size() - 1;
-						}
+						if (hovering_slot != -1)
+							selected_building_slot = hovering_slot;
 					}
 
 					if (selected_building_slot != -1)
