@@ -87,7 +87,7 @@ void draw_text(std::wstring_view text, uint font_size, const vec2& pos, const ve
 		canvas->draw_text(nullptr, font_size, p + shadow_offset, text, shadow_color);
 }
 
-auto tile_cx = 18U;
+auto tile_cx = 24U;
 auto tile_cy = 9U;
 auto tile_sz = 50.f;
 auto tile_sz_y = tile_sz * 0.5f * 1.732050807569;
@@ -757,32 +757,17 @@ cvec4 hsv(float h, float s, float v, float a)
 }
 
 GameState state = GameDay;
+bool editing_troops = false;
 BattleTroop battle_troops[2];
 uint battle_action_side = 0;
 float troop_move_time = 0.f;
 float last_troop_moved_time = 0.f;
+float troop_anim_time = 0.f;
 float battle_time = 0.f;
 float anim_remain = 0;
 
 void new_day()
 {
-	for (auto i = 1; i < lords.size(); i++)
-	{
-
-	}
-}
-
-void start_battle()
-{
-	if (state == GameNight)
-		return;
-	state = GameNight;
-	troop_move_time = 0.f;
-	last_troop_moved_time = 0.f;
-
-	if (lords.size() < 2)
-		return;
-
 	for (auto& lord : lords)
 	{
 		lord.troops.clear();
@@ -821,6 +806,15 @@ void start_battle()
 			}
 		}
 	}
+}
+
+void start_battle()
+{
+	if (state == GameNight)
+		return;
+	state = GameNight;
+	troop_move_time = 0.f;
+	last_troop_moved_time = 0.f;
 }
 
 void step_troop_moving()
@@ -1286,6 +1280,8 @@ void Game::init()
 			}
 		}
 	}
+
+	new_day();
 }
 
 void Game::on_render()
@@ -1299,6 +1295,7 @@ void Game::on_render()
 
 	if (anim_remain > 0.f)
 		anim_remain -= delta_time;
+	troop_anim_time += delta_time;
 
 	switch (state)
 	{
@@ -1343,7 +1340,7 @@ void Game::on_render()
 				}
 				if (display.state_text_remain > 0.f)
 				{
-					draw_text(display.state_text, 30, vec2(display.init_pos) + vec2(0.f, 5.f), vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
+					draw_text(display.state_text, 20, vec2(display.init_pos) + vec2(0.f, 5.f), vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
 					display.state_text_remain -= delta_time;
 					if (display.state_text_remain <= 0.f)
 						display.state_text = L"";
@@ -1416,7 +1413,7 @@ void Game::on_render()
 				{
 					for (auto j = 0; j < 4; j++)
 					{
-						if (abs(int(i * 4 + j - troop_move_time * 12.f) % 20) < 4)
+						if (abs(int(i * 4 + j - troop_anim_time * 12.f) % 20) < 4)
 						{
 							auto a = tiles[troop.path[i]].pos;
 							auto b = tiles[troop.path[i + 1]].pos;
@@ -1856,13 +1853,25 @@ void Game::on_render()
 		}
 		renderer->hud_end();
 
-		renderer->hud_begin(vec2(screen_size.x - 160.f, screen_size.y - 300.f), vec2(160.f, 300.f), cvec4(0, 0, 0, 255));
+		renderer->hud_begin(vec2(screen_size.x - 100.f, screen_size.y - 300.f), vec2(160.f, 300.f), cvec4(0, 0, 0, 255));
 		if (state == GameDay)
 		{
+			if (renderer->hud_button(L"Troops"))
+				editing_troops = true;
 			if (renderer->hud_button(L"Start Battle"))
 				start_battle();
 		}
 		renderer->hud_end();
+
+		if (editing_troops)
+		{
+			renderer->hud_begin(vec2(screen_size.x - 300.f, 100.f), vec2(200.f, 500.f), cvec4(0));
+			for (auto& city : main_player.cities)
+			{
+
+			}
+			renderer->hud_end();
+		}
 	}
 
 	UniverseApplication::on_render();
