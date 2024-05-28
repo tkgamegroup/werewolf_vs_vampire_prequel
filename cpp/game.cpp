@@ -46,6 +46,8 @@ enum BuildingType
 
 cCameraPtr camera;
 
+graphics::CanvasPtr canvas;
+
 graphics::ImagePtr img_be_hit;
 
 graphics::ImagePtr img_tile_frame;
@@ -64,6 +66,26 @@ graphics::ImagePtr img_resources[ResourceTypeCount] = {};
 graphics::ImagePtr img_population;
 
 graphics::SamplerPtr sp_repeat;
+
+void draw_image(graphics::ImagePtr img, const vec2& pos, const vec2& sz, const vec2& pivot = vec2(0.f), const cvec4& tint = cvec4(255))
+{
+	auto p = pos;
+	p -= pivot * sz;
+	canvas->draw_image(img->get_view(), p, p + sz, vec4(0.f, 0.f, 1.f, 1.f), tint);
+}
+
+void draw_text(std::wstring_view text, uint font_size, const vec2& pos, const vec2& pivot = vec2(0.f), const cvec4& color = cvec4(255), const vec2& shadow_offset = vec2(0.f), const cvec4& shadow_color = cvec4(255))
+{
+	auto p = pos;
+	if (pivot.x != 0.f || pivot.y != 0.f)
+	{
+		auto sz = canvas->calc_text_size(nullptr, font_size, text);
+		p -= pivot * sz;
+	}
+	canvas->draw_text(nullptr, font_size, p, text, color);
+	if (shadow_offset.x != 0.f || shadow_offset.y != 0.f)
+		canvas->draw_text(nullptr, font_size, p + shadow_offset, text, shadow_color);
+}
 
 auto tile_cx = 18U;
 auto tile_cy = 9U;
@@ -353,8 +375,6 @@ struct Troop
 	std::vector<Unit> units;
 	std::vector<uint> path;
 	uint idx = 0;
-
-	float anim_time = 0.f;
 };
 
 struct BattleTroop
@@ -362,16 +382,35 @@ struct BattleTroop
 	struct UnitDisplay
 	{
 		Unit unit;
-		vec3 pos;
+		vec3 init_pos;
+		vec3 pos; vec3 eul; vec3 scl; float alpha;
 		uint damage = 0;
 		float damage_label_remain = 0.f;
 		std::wstring state_text;
+		float state_text_remain = 0.f;
 
 		void take_damage(uint _damage)
 		{
 			damage += _damage;
 			unit.hp -= damage;
 			damage_label_remain = 0.3f;
+
+			if (unit.hp <= 0)
+			{
+				add_event([this]() {
+					auto id = game.tween->begin(nullptr, nullptr, nullptr, &alpha);
+					game.tween->alpha_to(id, 0.f, 0.5f);
+					game.tween->set_ease(id, EaseInCubic);
+					game.tween->end(id);
+					return false;
+				});
+			}
+		}
+
+		void get_state(const std::wstring& text)
+		{
+			state_text = text;
+			state_text_remain = 0.5f;
 		}
 	};
 
@@ -388,7 +427,10 @@ struct BattleTroop
 			auto& unit = troop->units[i];
 			auto& display = unit_displays[i];
 			display.unit = unit;
-			display.pos = vec3(100.f + i * 75.f, 100.f + 200.f * (1 - side), 0.f);
+			display.init_pos = vec3(132.f + i * 75.f, 100.f + 200.f * (1 - side), 0.f);
+			display.pos = display.init_pos;
+			display.scl = vec3(1.f);
+			display.alpha = 1.f;
 		}
 	}
 };
@@ -717,6 +759,9 @@ cvec4 hsv(float h, float s, float v, float a)
 GameState state = GameDay;
 BattleTroop battle_troops[2];
 uint battle_action_side = 0;
+float troop_move_time = 0.f;
+float last_troop_moved_time = 0.f;
+float battle_time = 0.f;
 float anim_remain = 0;
 
 void new_day()
@@ -732,6 +777,8 @@ void start_battle()
 	if (state == GameNight)
 		return;
 	state = GameNight;
+	troop_move_time = 0.f;
+	last_troop_moved_time = 0.f;
 
 	if (lords.size() < 2)
 		return;
@@ -768,7 +815,8 @@ void start_battle()
 							}
 						}
 					}
-					lord.troops.push_back(troop);
+					if (!troop.units.empty())
+						lord.troops.push_back(troop);
 				}
 			}
 		}
@@ -777,10 +825,6 @@ void start_battle()
 
 void step_troop_moving()
 {
-	if (anim_remain > 0.f)
-		return;
-	anim_remain = 0.5f;
-
 	for (auto i = 0; i < lords.size(); i++)
 	{
 		auto& lord = lords[i];
@@ -923,60 +967,46 @@ void step_battle()
 	auto& cast_unit_display = action_troop.unit_displays[action_troop.action_idx];
 	auto& target_unit_display = other_troop.unit_displays[target_idx];
 
-	if (caster.double_attack > 0)
+	auto double_attacked = false;
+	auto target_damage = caster.atk;
+	auto caster_damage = target.atk;
+	unit_take_damage(caster, target, target_damage);
+	unit_take_damage(target, caster, caster_damage);
+	if (caster.double_attack > 0 && caster.hp > 0 && target.hp > 0)
 	{
-		auto double_attacked = false;
-		auto target_damage = caster.atk;
-		auto caster_damage = target.atk;
 		unit_take_damage(caster, target, target_damage);
 		unit_take_damage(target, caster, caster_damage);
-		if (caster.hp > 0 && target.hp > 0)
-		{
-			unit_take_damage(caster, target, target_damage);
-			unit_take_damage(target, caster, caster_damage);
-			double_attacked = true;
-		}
-
-		{
-			auto id = game.tween->begin(&cast_unit_display.pos, nullptr, nullptr, nullptr);
-			auto target_pos = mix(cast_unit_display.pos, target_unit_display.pos, 0.9f);
-			game.tween->move_to(id, target_pos, 0.3f);
-			game.tween->set_callback(id, [&, caster_damage, target_damage]() {
-				cast_unit_display.take_damage(caster_damage);
-				target_unit_display.take_damage(target_damage);
-			});
-			if (double_attacked)
-			{
-				game.tween->move_to(id, mix(cast_unit_display.pos, target_unit_display.pos, 0.7f), 0.1f);
-				game.tween->move_to(id, target_pos, 0.1f);
-				game.tween->set_callback(id, [&, caster_damage, target_damage]() {
-					cast_unit_display.take_damage(caster_damage);
-					target_unit_display.take_damage(target_damage);
-				});
-			}
-			game.tween->move_to(id, cast_unit_display.pos, 0.3f);
-			game.tween->end(id);
-			anim_remain = 1.2f;
-		}
+		double_attacked = true;
 	}
-	else
-	{
-		auto target_damage = caster.atk;
-		auto caster_damage = target.atk;
-		unit_take_damage(caster, target, target_damage);
-		unit_take_damage(target, caster, caster_damage);
 
+	{
+		auto id = game.tween->begin(&cast_unit_display.pos, nullptr, &cast_unit_display.scl, nullptr);
+		auto target_pos = mix(cast_unit_display.pos, target_unit_display.pos, 0.9f);
+		game.tween->scale_to(id, vec3(1.5f), 0.3f);
+		game.tween->move_to(id, target_pos, 0.3f);
+		game.tween->set_ease(id, EaseInCubic);
+		game.tween->set_callback(id, [&, caster_damage, target_damage]() {
+			cast_unit_display.take_damage(caster_damage);
+			target_unit_display.take_damage(target_damage);
+		});
+		if (double_attacked)
 		{
-			auto id = game.tween->begin(&cast_unit_display.pos, nullptr, nullptr, nullptr);
-			game.tween->move_to(id, mix(cast_unit_display.pos, target_unit_display.pos, 0.9f), 0.3f);
+			game.tween->move_to(id, mix(cast_unit_display.pos, target_unit_display.pos, 0.3f), 0.2f);
+			game.tween->set_callback(id, [&, caster_damage, target_damage]() {
+				cast_unit_display.get_state(L"Double Attack");
+			});
+			game.tween->move_to(id, target_pos, 0.2f);
+			game.tween->set_ease(id, EaseInCubic);
 			game.tween->set_callback(id, [&, caster_damage, target_damage]() {
 				cast_unit_display.take_damage(caster_damage);
 				target_unit_display.take_damage(target_damage);
 			});
-			game.tween->move_to(id, cast_unit_display.pos, 0.3f);
-			game.tween->end(id);
-			anim_remain = 1.f;
 		}
+		game.tween->move_to(id, cast_unit_display.pos, 0.3f);
+		game.tween->newline(id);
+		game.tween->scale_to(id, vec3(1.f), 0.3f);
+		game.tween->end(id);
+		anim_remain = 1.7f;
 	}
 
 	action_troop.action_idx++;
@@ -1010,6 +1040,7 @@ void Game::init()
 	camera = root->add_component<cCamera>();
 
 	renderer->add_render_task(RenderModeShaded, camera, main_window, {}, graphics::ImageLayoutPresent);
+	canvas = renderer->render_tasks.front()->canvas;
 
 	Path::set_root(L"assets", L"assets");
 
@@ -1218,11 +1249,27 @@ void Game::init()
 		}
 	}
 
-	if (auto tile_id = search_lord_location(); tile_id != -1)
-		add_lord(tile_id);
+	// give a barracks and some units for testing
 	if (auto tile_id = search_lord_location(); tile_id != -1)
 	{
-		// give a barracks and some units to ai
+		if (auto id = add_lord(tile_id); id != -1)
+		{
+			auto& lord = lords[id];
+			auto& city = lord.cities.front();
+			for (auto& building : city.buildings)
+			{
+				if (building.type == BuildingBarracks)
+				{
+					lord.upgrade_building(city, building.slot, true);
+					if (!building.buys.empty())
+						building.buys[0].num = 3;
+					break;
+				}
+			}
+		}
+	}
+	if (auto tile_id = search_lord_location(); tile_id != -1)
+	{
 		if (auto id = add_lord(tile_id); id != -1)
 		{
 			auto& lord = lords[id];
@@ -1247,7 +1294,6 @@ void Game::on_render()
 		return;
 
 	auto& main_player = lords.front();
-	auto canvas = renderer->render_tasks.front()->canvas;
 	auto screen_size = canvas->size;
 	auto mpos = input->mpos;
 
@@ -1257,7 +1303,12 @@ void Game::on_render()
 	switch (state)
 	{
 	case GameNight:
-		step_troop_moving();
+		troop_move_time += delta_time;
+		if (troop_move_time - last_troop_moved_time >= 0.5f)
+		{
+			last_troop_moved_time += 0.5f;
+			step_troop_moving();
+		}
 		break;
 	case GameBattle:
 		step_battle();
@@ -1266,8 +1317,8 @@ void Game::on_render()
 
 	if (state == GameBattle)
 	{
-		canvas->add_rect_filled(vec2(100.f, 300.f), vec2(500.f, 400), hsv(battle_troops[0].troop->lord_id * 60.f, 0.5f, 0.5f, 1.f));
-		canvas->add_rect_filled(vec2(100.f, 100.f), vec2(500.f, 200), hsv(battle_troops[1].troop->lord_id * 60.f, 0.5f, 0.5f, 1.f));
+		canvas->draw_rect_filled(vec2(100.f, 236.f), vec2(500.f, 336.f), hsv(battle_troops[0].troop->lord_id * 60.f, 0.5f, 0.5f, 1.f));
+		canvas->draw_rect_filled(vec2(100.f, 36.f), vec2(500.f, 136.f), hsv(battle_troops[1].troop->lord_id * 60.f, 0.5f, 0.5f, 1.f));
 
 		for (auto i = 0; i < 2; i++)
 		{
@@ -1279,16 +1330,23 @@ void Game::on_render()
 				auto& unit_data = unit_datas[unit.id];
 				auto pos = vec2(display.pos);
 				if (unit_data.icon)
-					canvas->add_image(unit_data.icon->get_view(), pos, pos + vec2(64), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
-				canvas->add_text(nullptr, 24, pos + vec2(0.f, 56.f), std::format(L"{}", unit.atk), cvec4(255));
-				canvas->add_text(nullptr, 24, pos + vec2(48.f, 56.f), std::format(L"{}", unit.hp), unit.hp > 0 ? cvec4(255) : cvec4(255, 0, 0, 255));
+					draw_image(unit_data.icon, pos, vec2(64.f) * display.scl.x, vec2(0.5f, 1.f), cvec4(255, 255, 255, 255 * display.alpha));
+				draw_text(std::format(L"{}", unit.atk), 24, pos - vec2(21.f, 0.f), vec2(0.5f, 1.f), cvec4(255, 255, 255, 255 * display.alpha));
+				draw_text(std::format(L"{}", unit.hp), 24, pos + vec2(21.f, 0.f), vec2(0.5f, 1.f), unit.hp > 0 ? cvec4(255, 255, 255, 255 * display.alpha) : cvec4(255, 0, 0, 255 * display.alpha));
 				if (display.damage_label_remain > 0.f)
 				{
-					canvas->add_image(img_be_hit->get_view(), pos, pos + vec2(64.f), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
-					canvas->add_text(nullptr, 40, pos + vec2(16.f), std::format(L"-{}", display.damage), cvec4(0, 0, 0, 255));
+					draw_image(img_be_hit, pos - vec2(0.f, 32.f), vec2(50.f), vec2(0.5f, 0.5f));
+					draw_text(std::format(L"-{}", display.damage), 40, pos - vec2(0.f, 32.f), vec2(0.5f, 0.5f), cvec4(0, 0, 0, 255), -vec2(2.f), cvec4(255));
 					display.damage_label_remain -= delta_time;
 					if (display.damage_label_remain <= 0.f)
 						display.damage = 0;
+				}
+				if (display.state_text_remain > 0.f)
+				{
+					draw_text(display.state_text, 30, vec2(display.init_pos) + vec2(0.f, 5.f), vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
+					display.state_text_remain -= delta_time;
+					if (display.state_text_remain <= 0.f)
+						display.state_text = L"";
 				}
 			}
 		}
@@ -1297,20 +1355,20 @@ void Game::on_render()
 	{
 		for (auto& tile : tiles)
 		{
-			canvas->add_image(img_tile_grass->get_view(), tile.pos, tile.pos + vec2(tile_sz, tile_sz_y), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
-			//canvas->add_text(nullptr, 16, tile.pos + vec2(10.f), wstr(tile.id), cvec4(255));
+			draw_image(img_tile_grass, tile.pos, vec2(tile_sz, tile_sz_y));
+			//canvas->draw_text(nullptr, 16, tile.pos + vec2(10.f), wstr(tile.id), cvec4(255));
 		}
 		for (auto& lord : lords)
 		{
 			for (auto& city : lord.cities)
 			{
 				auto& tile = tiles[city.tile_id];
-				canvas->add_image(img_city->get_view(), tile.pos, tile.pos + vec2(tile_sz, tile_sz_y), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
+				draw_image(img_city, tile.pos, vec2(tile_sz, tile_sz_y));
 			}
 			for (auto& field : lord.resource_fields)
 			{
-				auto pos = tiles[field.tile_id].pos + vec2(tile_sz, tile_sz_y) * 0.5f - vec2(18.f, 12.f);
-				canvas->add_image(img_resources[field.type]->get_view(), pos, pos + vec2(36.f, 24.f), vec4(0.f, 0.f, 1.f, 1.f), cvec4(255));
+				auto pos = tiles[field.tile_id].pos + vec2(tile_sz, tile_sz_y) * 0.5f;
+				draw_image(img_resources[field.type], pos, vec2(36.f, 24.f), vec2(0.5f));
 			}
 			{
 				std::vector<vec2> strips;
@@ -1338,24 +1396,35 @@ void Game::on_render()
 			}
 			for (auto& troop : lord.troops)
 			{
-				for (auto id : troop.path)
+				vec2 end_point;
+				for (auto i = 0; i <= troop.idx; i++)
+				{
+					auto id = troop.path[i];
 					canvas->path.push_back(tiles[id].pos + vec2(tile_sz) * 0.5f);
-				canvas->stroke(2.f, hsv(lord.id * 60.f, 0.5f, 0.8f, 0.8f), false);
+				}
+				end_point = canvas->path.back();
+				if (troop_move_time * 2.f < troop.idx)
+					int cut = 1;
+				if (auto idx = troop.idx + 1; idx < troop.path.size())
+				{
+					auto t = fract(troop_move_time * 2.f);
+					end_point = mix(end_point, tiles[troop.path[idx]].pos + vec2(tile_sz) * 0.5f, t);
+					canvas->path.push_back(end_point);
+				}
+				canvas->stroke(4.f, hsv(lord.id * 60.f, 0.5f, 0.8f, 1.f), false);
 				for (auto i = 0; i < troop.path.size() - 1; i++)
 				{
 					for (auto j = 0; j < 4; j++)
 					{
-						if (abs(int(i * 4 + j - troop.anim_time * 12.f) % 20) < 4)
+						if (abs(int(i * 4 + j - troop_move_time * 12.f) % 20) < 4)
 						{
 							auto a = tiles[troop.path[i]].pos;
 							auto b = tiles[troop.path[i + 1]].pos;
-							canvas->add_circle_filled(mix(a, b, j / 4.f) + vec2(tile_sz) * 0.5f, 3.f, hsv(lord.id * 60.f, 0.5f, 0.8f, 0.8f));
+							canvas->draw_circle_filled(mix(a, b, j / 4.f) + vec2(tile_sz) * 0.5f, 3.f, hsv(lord.id * 60.f, 0.5f, 0.8f, 0.8f));
 						}
 					}
 				}
-				troop.anim_time += delta_time;
-
-				canvas->add_circle_filled(tiles[troop.path[troop.idx]].pos + vec2(tile_sz) * 0.5f, 6.f, hsv(lord.id * 60.f, 0.5f, 1.f, 1.f));
+				canvas->draw_circle_filled(end_point, 6.f, hsv(lord.id * 60.f, 0.5f, 1.f, 1.f));
 			}
 		}
 
@@ -1566,11 +1635,11 @@ void Game::on_render()
 						pts[i] = corner_pos[i];
 						uvs[i] = (corner_pos[i] - c + vec2(circle_sz)) / circle_sz * 3.f;
 					}
-					canvas->add_image_polygon(img_ground->get_view(), pts, uvs, cvec4(255), sp_repeat);
+					canvas->draw_image_polygon(img_ground->get_view(), pts, uvs, cvec4(255), sp_repeat);
 				}
 				for (auto i = 0; i < 6; i++)
 				{
-					canvas->add_image_polygon(img_wall->get_view(), { wall_rect[4 * i + 0], wall_rect[4 * i + 3], wall_rect[4 * i + 2], wall_rect[4 * i + 1] },
+					canvas->draw_image_polygon(img_wall->get_view(), { wall_rect[4 * i + 0], wall_rect[4 * i + 3], wall_rect[4 * i + 2], wall_rect[4 * i + 1] },
 						{ vec2(0.f, 1.f), vec2(2.f, 1.f), vec2(2.f, 0.f), vec2(0.f, 0.f) }, hovering_slot == building_slots.size() - 1 ? cvec4(127, 127, 127, 255) : cvec4(255), sp_repeat);
 				}
 
@@ -1578,12 +1647,7 @@ void Game::on_render()
 				renderer->hud_rect(vec2(circle_sz * 2.f + 28.f, bottom_pannel_height - 8.f), cvec4(0));
 
 				for (auto i = 0; i < 6; i++)
-				{
-					auto p = corner_pos[i];
-					auto sz = vec2(img_tower->extent) * 0.5f;
-					p = p - vec2(sz.x * 0.5f, sz.y * 0.8f);
-					canvas->add_image(img_tower->get_view(), p, p + sz, vec4(0.f, 0.f, 1.f, 1.f), hovering_slot == building_slots.size() - 2 ? cvec4(127, 127, 127, 255) : cvec4(255));
-				}
+					draw_image(img_tower, corner_pos[i], vec2(img_tower->extent) * 0.5f, vec2(0.5f, 0.8f), hovering_slot == building_slots.size() - 2 ? cvec4(127, 127, 127, 255) : cvec4(255));
 
 				for (auto i = 0; i < building_slots.size(); i++)
 				{
@@ -1593,28 +1657,13 @@ void Game::on_render()
 					switch (slot.type)
 					{
 					case BuildingTownCenter:
-					{
-						auto p = c + slot.pos;
-						auto sz = vec2(img_town_center->extent) * 0.5f;
-						p = p - vec2(sz.x * 0.5f, sz.y * 0.8f);
-						canvas->add_image(img_town_center->get_view(), p, p + sz, vec4(0.f, 0.f, 1.f, 1.f), hovering_slot == i ? cvec4(127, 127, 127, 255) : cvec4(255));
-					}
+						draw_image(img_town_center, c + slot.pos, vec2(img_town_center->extent) * 0.5f, vec2(0.5f, 0.8f), hovering_slot == i ? cvec4(127, 127, 127, 255) : cvec4(255));
 						break;
 					case BuildingHouse:
-					{
-						auto p = c + slot.pos;
-						auto sz = vec2(img_house->extent) * 0.5f;
-						p = p - vec2(sz.x * 0.5f, sz.y * 0.8f);
-						canvas->add_image(img_house->get_view(), p, p + sz, vec4(0.f, 0.f, 1.f, 1.f), hovering_slot == i ? cvec4(127, 127, 127, 255) : cvec4(255));
-					}
+						draw_image(img_house, c + slot.pos, vec2(img_house->extent) * 0.5f, vec2(0.5f, 0.8f), hovering_slot == i ? cvec4(127, 127, 127, 255) : cvec4(255));
 						break;
 					case BuildingBarracks:
-					{
-						auto p = c + slot.pos;
-						auto sz = vec2(img_barracks->extent) * 0.5f;
-						p = p - vec2(sz.x * 0.5f, sz.y * 0.8f);
-						canvas->add_image(img_barracks->get_view(), p, p + sz, vec4(0.f, 0.f, 1.f, 1.f), hovering_slot == i ? cvec4(127, 127, 127, 255) : cvec4(255));
-					}
+						draw_image(img_barracks, c + slot.pos, vec2(img_barracks->extent) * 0.5f, vec2(0.5f, 0.8f), hovering_slot == i ? cvec4(127, 127, 127, 255) : cvec4(255));
 						break;
 					}
 				}
