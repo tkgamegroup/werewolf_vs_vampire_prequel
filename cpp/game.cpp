@@ -15,6 +15,7 @@ enum TileType
 
 enum GameState
 {
+	GameInit,
 	GameDay,
 	GameNight,
 	GameBattle
@@ -302,6 +303,7 @@ struct City
 {
 	uint tile_id;
 	uint lord_id;
+	uint loyalty;
 	std::vector<Building> buildings;
 };
 
@@ -756,8 +758,7 @@ cvec4 hsv(float h, float s, float v, float a)
 	return cvec4(vec4(rgbColor(vec3(h, s, v)), a) * 255.f);
 }
 
-GameState state = GameDay;
-bool editing_troops = false;
+GameState state = GameInit;
 BattleTroop battle_troops[2];
 uint battle_action_side = 0;
 float troop_move_time = 0.f;
@@ -768,6 +769,10 @@ float anim_remain = 0;
 
 void new_day()
 {
+	if (state == GameDay)
+		return;
+	state = GameDay;
+
 	for (auto& lord : lords)
 	{
 		lord.troops.clear();
@@ -819,6 +824,21 @@ void start_battle()
 
 void step_troop_moving()
 {
+	auto no_troops = true;
+	for (auto& lord : lords)
+	{
+		if (!lord.troops.empty())
+		{
+			no_troops = false;
+			break;
+		}
+	}
+	if (no_troops)
+	{
+		new_day();
+		return;
+	}
+
 	for (auto i = 0; i < lords.size(); i++)
 	{
 		auto& lord = lords[i];
@@ -871,7 +891,25 @@ void step_troop_moving()
 		for (auto it = lord.troops.begin(); it != lord.troops.end(); )
 		{
 			if (it->idx == it->path.size() - 1)
+			{
+				auto tile_id = it->path.back();
+				for (auto& _lord : lords)
+				{
+					if (auto id = _lord.find_city(tile_id); id != -1)
+					{
+						auto& city = _lord.cities[id];
+						auto damage = 0;
+						for (auto& unit : it->units)
+							damage += 1;
+						if (city.loyalty > damage)
+							city.loyalty -= damage;
+						else
+							city.loyalty = 0;
+						break;
+					}
+				}
 				it = lord.troops.erase(it);
+			}
 			else
 				it++;
 		}
@@ -1856,22 +1894,10 @@ void Game::on_render()
 		renderer->hud_begin(vec2(screen_size.x - 100.f, screen_size.y - 300.f), vec2(160.f, 300.f), cvec4(0, 0, 0, 255));
 		if (state == GameDay)
 		{
-			if (renderer->hud_button(L"Troops"))
-				editing_troops = true;
 			if (renderer->hud_button(L"Start Battle"))
 				start_battle();
 		}
 		renderer->hud_end();
-
-		if (editing_troops)
-		{
-			renderer->hud_begin(vec2(screen_size.x - 300.f, 100.f), vec2(200.f, 500.f), cvec4(0));
-			for (auto& city : main_player.cities)
-			{
-
-			}
-			renderer->hud_end();
-		}
 	}
 
 	UniverseApplication::on_render();
