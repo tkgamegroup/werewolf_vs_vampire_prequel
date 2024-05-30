@@ -539,6 +539,7 @@ struct Lord
 		resource_fields.push_back(resource_field);
 
 		tile.type = TileResourceField;
+		tile.lord_id = id;
 
 		return true;
 	}
@@ -681,6 +682,7 @@ int add_lord(uint tile_id)
 	City city;
 	city.tile_id = tile_id;
 	city.lord_id = lord.id;
+	city.loyalty = 100;
 	city.buildings.resize(building_slots.size());
 	for (auto i = 0; i < building_slots.size(); i++)
 	{
@@ -839,6 +841,52 @@ void step_troop_moving()
 		return;
 	}
 
+	for (auto& lord : lords)
+	{
+		for (auto& troop : lord.troops)
+		{
+			if (troop.idx < troop.path.size() - 1)
+				troop.idx++;
+		}
+	}
+
+	for (auto i = 0; i < lords.size(); i++)
+	{
+		auto& lord = lords[i];
+		for (auto j = 0; j < lord.troops.size(); j++)
+		{
+			auto& troop = lord.troops[j];
+			for (auto ii = i + 1; ii < lords.size(); ii++)
+			{
+				auto& _lord = lords[ii];
+				for (auto jj = 0; jj < _lord.troops.size(); jj++)
+				{
+					auto& _troop = _lord.troops[jj];
+					if (troop.path[troop.idx] == _troop.path[_troop.idx])
+					{
+						state = GameBattle;
+						{
+							auto& battle_troop = battle_troops[0];
+							battle_troop.side = 0;
+							battle_troop.troop = &troop;
+							battle_troop.action_idx = 0;
+							battle_troop.refresh_display();
+						}
+						{
+							auto& battle_troop = battle_troops[1];
+							battle_troop.side = 1;
+							battle_troop.troop = &_troop;
+							battle_troop.action_idx = 0;
+							battle_troop.refresh_display();
+						}
+						battle_action_side = 0;
+						return;
+					}
+				}
+			}
+		}
+	}
+
 	for (auto i = 0; i < lords.size(); i++)
 	{
 		auto& lord = lords[i];
@@ -879,15 +927,6 @@ void step_troop_moving()
 
 	for (auto& lord : lords)
 	{
-		for (auto& troop : lord.troops)
-		{
-			if (troop.idx < troop.path.size() - 1)
-				troop.idx++;
-		}
-	}
-
-	for (auto& lord : lords)
-	{
 		for (auto it = lord.troops.begin(); it != lord.troops.end(); )
 		{
 			if (it->idx == it->path.size() - 1)
@@ -915,40 +954,65 @@ void step_troop_moving()
 		}
 	}
 
-	for (auto i = 0; i < lords.size(); i++)
+	for (auto& lord : lords)
 	{
-		auto& lord = lords[i];
-		for (auto j = 0; j < lord.troops.size(); j++)
+		for (auto it = lord.cities.begin(); it != lord.cities.end(); )
 		{
-			auto& troop = lord.troops[j];
-			for (auto ii = i + 1; ii < lords.size(); ii++)
+			if (it->loyalty == 0)
 			{
-				auto& _lord = lords[ii];
-				for (auto jj = 0; jj < _lord.troops.size(); jj++)
+				auto& tile = tiles[it->tile_id];
+				tile.type = TileField;
+				tile.lord_id = -1;
+				for (auto it2 = lord.resource_fields.begin(); it2 != lord.resource_fields.end(); )
 				{
-					auto& _troop = _lord.troops[jj];
-					if (troop.path[troop.idx] == _troop.path[_troop.idx])
+					auto no_nearby_cities = true;
+					auto& tile = tiles[it2->tile_id];
+					if (no_nearby_cities && tile.tile_lt != -1)
 					{
-						state = GameBattle;
-						{
-							auto& battle_troop = battle_troops[0];
-							battle_troop.side = 0;
-							battle_troop.troop = &troop;
-							battle_troop.action_idx = 0;
-							battle_troop.refresh_display();
-						}
-						{
-							auto& battle_troop = battle_troops[1];
-							battle_troop.side = 1;
-							battle_troop.troop = &_troop;
-							battle_troop.action_idx = 0;
-							battle_troop.refresh_display();
-						}
-						battle_action_side = 0;
-						return;
+						auto& _tile = tiles[tile.tile_lt];
+						if (_tile.type == TileCity && _tile.lord_id == lord.id)
+							no_nearby_cities = false;
+					}
+					if (no_nearby_cities && tile.tile_t != -1)
+					{
+						auto& _tile = tiles[tile.tile_t];
+						if (_tile.type == TileCity && _tile.lord_id == lord.id)
+							no_nearby_cities = false;
+					}
+					if (no_nearby_cities && tile.tile_rt != -1)
+					{
+						auto& _tile = tiles[tile.tile_rt];
+						if (_tile.type == TileCity && _tile.lord_id == lord.id)
+							no_nearby_cities = false;
+					}
+					if (no_nearby_cities && tile.tile_lb != -1)
+					{
+						auto& _tile = tiles[tile.tile_lb];
+						if (_tile.type == TileCity && _tile.lord_id == lord.id)
+							no_nearby_cities = false;
+					}
+					if (no_nearby_cities && tile.tile_b != -1)
+					{
+						auto& _tile = tiles[tile.tile_b];
+						if (_tile.type == TileCity && _tile.lord_id == lord.id)
+							no_nearby_cities = false;
+					}
+					if (no_nearby_cities && tile.tile_rb != -1)
+					{
+						auto& _tile = tiles[tile.tile_rb];
+						if (_tile.type == TileCity && _tile.lord_id == lord.id)
+							no_nearby_cities = false;
+					}
+					if (no_nearby_cities)
+					{
+						tile.type = TileField;
+						tile.lord_id = -1;
 					}
 				}
+				it = lord.cities.erase(it);
 			}
+			else
+				it++;
 		}
 	}
 }
@@ -1399,6 +1463,7 @@ void Game::on_render()
 			{
 				auto& tile = tiles[city.tile_id];
 				draw_image(img_city, tile.pos, vec2(tile_sz, tile_sz_y));
+				draw_text(wstr(city.loyalty), 20, tile.pos + vec2(tile_sz, tile_sz_y) * 0.5f + vec2(0.f, -10.f), vec2(0.5f), cvec4(0, 255, 0, 255));
 			}
 			for (auto& field : lord.resource_fields)
 			{
@@ -1438,8 +1503,6 @@ void Game::on_render()
 					canvas->path.push_back(tiles[id].pos + vec2(tile_sz) * 0.5f);
 				}
 				end_point = canvas->path.back();
-				if (troop_move_time * 2.f < troop.idx)
-					int cut = 1;
 				if (auto idx = troop.idx + 1; idx < troop.path.size())
 				{
 					auto t = fract(troop_move_time * 2.f);
