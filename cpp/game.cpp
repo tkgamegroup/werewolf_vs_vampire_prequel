@@ -1785,22 +1785,22 @@ void Game::on_render()
 							{
 								renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceWood]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_wood), 16);
+								renderer->hud_text(std::format(L"{}", next_level->cost_wood), 16, main_player.resources[ResourceWood] >= next_level->cost_wood ? cvec4(255) : cvec4(255, 0, 0, 255));
 								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceClay]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_clay), 16);
+								renderer->hud_text(std::format(L"{}", next_level->cost_clay), 16, main_player.resources[ResourceClay] >= next_level->cost_clay ? cvec4(255) : cvec4(255, 0, 0, 255));
 								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceIron]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_iron), 16);
+								renderer->hud_text(std::format(L"{}", next_level->cost_iron), 16, main_player.resources[ResourceIron] >= next_level->cost_iron ? cvec4(255) : cvec4(255, 0, 0, 255));
 								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_crop), 16);
+								renderer->hud_text(std::format(L"{}", next_level->cost_crop), 16, main_player.resources[ResourceCrop] >= next_level->cost_crop ? cvec4(255) : cvec4(255, 0, 0, 255));
 								renderer->hud_end_layout();
 								renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceGold]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_gold), 16);
+								renderer->hud_text(std::format(L"{}", next_level->cost_gold), 16, main_player.resources[ResourceGold] >= next_level->cost_gold ? cvec4(255) : cvec4(255, 0, 0, 255));
 								renderer->hud_image(vec2(18.f, 12.f), img_population);
-								renderer->hud_text(std::format(L"{}", next_level->cost_population), 16);
+								renderer->hud_text(std::format(L"{}", next_level->cost_population), 16, (int)main_player.provide_population - (int)main_player.consume_population >= next_level->cost_population ? cvec4(255) : cvec4(255, 0, 0, 255));
 								renderer->hud_end_layout();
 
-								if (renderer->hud_button(L"Upgrade", 18))
+								if (renderer->hud_button(building.lv == 0 ? L"Build" : L"Upgrade", 18))
 									main_player.upgrade_building(city, selected_building_slot);
 							}
 						};
@@ -1857,19 +1857,19 @@ void Game::on_render()
 
 									renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 									renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceWood]);
-									renderer->hud_text(std::format(L"{}", unit_data.cost_wood), 16);
+									renderer->hud_text(std::format(L"{}", unit_data.cost_wood), 16, main_player.resources[ResourceWood] >= unit_data.cost_wood ? cvec4(255) : cvec4(255, 0, 0, 255));
 									renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceClay]);
-									renderer->hud_text(std::format(L"{}", unit_data.cost_clay), 16);
+									renderer->hud_text(std::format(L"{}", unit_data.cost_clay), 16, main_player.resources[ResourceClay] >= unit_data.cost_clay ? cvec4(255) : cvec4(255, 0, 0, 255));
 									renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceIron]);
-									renderer->hud_text(std::format(L"{}", unit_data.cost_iron), 16);
+									renderer->hud_text(std::format(L"{}", unit_data.cost_iron), 16, main_player.resources[ResourceIron] >= unit_data.cost_iron ? cvec4(255) : cvec4(255, 0, 0, 255));
 									renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
-									renderer->hud_text(std::format(L"{}", unit_data.cost_crop), 16);
+									renderer->hud_text(std::format(L"{}", unit_data.cost_crop), 16, main_player.resources[ResourceCrop] >= unit_data.cost_crop ? cvec4(255) : cvec4(255, 0, 0, 255));
 									renderer->hud_end_layout();
 									renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 									renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceGold]);
-									renderer->hud_text(std::format(L"{}", unit_data.cost_gold), 16);
+									renderer->hud_text(std::format(L"{}", unit_data.cost_gold), 16, main_player.resources[ResourceGold] >= unit_data.cost_gold ? cvec4(255) : cvec4(255, 0, 0, 255));
 									renderer->hud_image(vec2(18.f, 12.f), img_population);
-									renderer->hud_text(std::format(L"{}", unit_data.cost_population), 16);
+									renderer->hud_text(std::format(L"{}", unit_data.cost_population), 16, (int)main_player.provide_population - (int)main_player.consume_population >= unit_data.cost_population ? cvec4(255) : cvec4(255, 0, 0, 255));
 									renderer->hud_end_layout();
 
 									if (renderer->hud_button(L"Buy", 18))
