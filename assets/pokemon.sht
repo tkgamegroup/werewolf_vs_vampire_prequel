@@ -1,0 +1,170 @@
+<?xml version="1.0"?>
+<sheet name="units">
+	<columns>
+		<column type="D@std::wstring" name="name" />
+		<column type="D@uint" name="cost_wood" />
+		<column type="D@uint" name="cost_clay" />
+		<column type="D@uint" name="cost_iron" />
+		<column type="D@uint" name="cost_crop" />
+		<column type="D@uint" name="cost_gold" />
+		<column type="D@uint" name="cost_population" />
+		<column type="D@uint" name="HP" />
+		<column type="D@uint" name="ATK" />
+		<column type="D@uint" name="DEF" />
+		<column type="D@uint" name="SA" />
+		<column type="D@uint" name="SD" />
+		<column type="D@uint" name="SP" />
+
+	</columns>
+	<rows>
+		<row name="Bulbasaur" cost_gold="0" cost_population="0" HP="45" ATK="49" DEF="49" SA="65" SD="65" SP="45" type1="Grass" type2="Poison" />
+		<row name="Ivysaur" cost_gold="0" cost_population="0" HP="60" ATK="62" DEF="63" SA="80" SD="80" SP="60" type1="Grass" type2="Poison" />
+		<row name="Venusaur" cost_gold="0" cost_population="0" HP="80" ATK="82" DEF="83" SA="100" SD="100" SP="80" type1="Grass" type2="Poison" />
+		<row name="Charmander" cost_gold="0" cost_population="0" HP="39" ATK="52" DEF="43" SA="60" SD="50" SP="65" type1="Fire" />
+		<row name="Charmeleon" cost_gold="0" cost_population="0" HP="58" ATK="64" DEF="58" SA="80" SD="65" SP="80" type1="Fire" />
+		<row name="Charizard" cost_gold="0" cost_population="0" HP="78" ATK="84" DEF="78" SA="109" SD="85" SP="100" type1="Fire" type2="Flying" />
+		<row name="Squirtle" cost_gold="0" cost_population="0" HP="44" ATK="48" DEF="65" SA="50" SD="64" SP="43" type1="Water" />
+		<row name="Wartortle" cost_gold="0" cost_population="0" HP="59" ATK="63" DEF="80" SA="65" SD="80" SP="58" type1="Water" />
+		<row name="Blastoise" cost_gold="0" cost_population="0" HP="79" ATK="83" DEF="100" SA="85" SD="105" SP="78" type1="Water" />
+		<row name="Caterpie" cost_gold="0" cost_population="0" HP="45" ATK="30" DEF="35" SA="20" SD="20" SP="45" type1="Bug" />
+		<row name="Metapod" cost_gold="0" cost_population="0" HP="50" ATK="20" DEF="55" SA="25" SD="25" SP="30" type1="Bug" />
+		<row name="Butterfree" cost_gold="0" cost_population="0" HP="60" ATK="45" DEF="50" SA="90" SD="80" SP="70" type1="Bug" type2="Flying" />
+		<row name="Weedle" cost_gold="0" cost_population="0" HP="40" ATK="35" DEF="30" SA="20" SD="20" SP="50" type1="Bug" type2="Poison" />
+		<row name="Kakuna" cost_gold="0" cost_population="0" HP="45" ATK="25" DEF="50" SA="25" SD="25" SP="35" type1="Bug" type2="Poison" />
+		<row name="Beedrill" cost_gold="0" cost_population="0" HP="65" ATK="90" DEF="40" SA="45" SD="80" SP="75" type1="Bug" type2="Poison" />
+		<row name="Pidgey" cost_gold="0" cost_population="0" HP="40" ATK="45" DEF="40" SA="35" SD="35" SP="56" type1="Normal" type2="Flying" />
+		<row name="Pidgeotto" cost_gold="0" cost_population="0" HP="63" ATK="60" DEF="55" SA="50" SD="50" SP="71" type1="Normal" type2="Flying" />
+		<row name="Pidgeot" cost_gold="0" cost_population="0" HP="83" ATK="80" DEF="75" SA="70" SD="70" SP="101" type1="Normal" type2="Flying" />
+		<row name="Rattata" cost_gold="0" cost_population="0" HP="30" ATK="56" DEF="35" SA="25" SD="35" SP="72" type1="Normal" />
+		<row name="Raticate" cost_gold="0" cost_population="0" HP="55" ATK="81" DEF="60" SA="50" SD="70" SP="97" type1="Normal" />
+		<row name="Spearow" cost_gold="0" cost_population="0" HP="40" ATK="60" DEF="30" SA="31" SD="31" SP="70" type1="Normal" type2="Flying" />
+		<row name="Fearow" cost_gold="0" cost_population="0" HP="65" ATK="90" DEF="65" SA="61" SD="61" SP="100" type1="Normal" type2="Flying" />
+		<row name="Ekans" cost_gold="0" cost_population="0" HP="35" ATK="60" DEF="44" SA="40" SD="54" SP="55" type1="Poison" />
+		<row name="Arbok" cost_gold="0" cost_population="0" HP="60" ATK="95" DEF="69" SA="65" SD="79" SP="80" type1="Poison" />
+		<row name="Pikachu" cost_gold="0" cost_population="0" HP="35" ATK="55" DEF="40" SA="50" SD="50" SP="90" type1="Electric" />
+		<row name="Raichu" cost_gold="0" cost_population="0" HP="60" ATK="90" DEF="55" SA="90" SD="80" SP="110" type1="Electric" />
+		<row name="Sandshrew" cost_gold="0" cost_population="0" HP="50" ATK="75" DEF="85" SA="20" SD="30" SP="40" type1="Ground" />
+		<row name="Sandslash" cost_gold="0" cost_population="0" HP="75" ATK="100" DEF="110" SA="45" SD="55" SP="65" type1="Ground" />
+		<row name="Nidoran♀" cost_gold="0" cost_population="0" HP="55" ATK="47" DEF="52" SA="40" SD="40" SP="41" type1="Poison" />
+		<row name="Nidorina" cost_gold="0" cost_population="0" HP="70" ATK="62" DEF="67" SA="55" SD="55" SP="56" type1="Poison" />
+		<row name="Nidoqueen" cost_gold="0" cost_population="0" HP="90" ATK="92" DEF="87" SA="75" SD="85" SP="76" type1="Poison" type2="Ground" />
+		<row name="Nidoran♂" cost_gold="0" cost_population="0" HP="46" ATK="57" DEF="40" SA="40" SD="40" SP="50" type1="Poison" />
+		<row name="Nidorino" cost_gold="0" cost_population="0" HP="61" ATK="72" DEF="57" SA="55" SD="55" SP="65" type1="Poison" />
+		<row name="Nidoking" cost_gold="0" cost_population="0" HP="81" ATK="102" DEF="77" SA="85" SD="75" SP="85" type1="Poison" type2="Ground" />
+		<row name="Clefairy" cost_gold="0" cost_population="0" HP="70" ATK="45" DEF="48" SA="60" SD="65" SP="35" type1="Fairy" />
+		<row name="Clefable" cost_gold="0" cost_population="0" HP="95" ATK="70" DEF="73" SA="95" SD="90" SP="60" type1="Fairy" />
+		<row name="Vulpix" cost_gold="0" cost_population="0" HP="38" ATK="41" DEF="40" SA="50" SD="65" SP="65" type1="Fire" />
+		<row name="Ninetales" cost_gold="0" cost_population="0" HP="73" ATK="76" DEF="75" SA="81" SD="100" SP="100" type1="Fire" />
+		<row name="Jigglypuff" cost_gold="0" cost_population="0" HP="115" ATK="45" DEF="20" SA="45" SD="25" SP="20" type1="Normal" type2="Fairy" />
+		<row name="Wigglytuff" cost_gold="0" cost_population="0" HP="140" ATK="70" DEF="45" SA="85" SD="50" SP="45" type1="Normal" type2="Fairy" />
+		<row name="Zubat" cost_gold="0" cost_population="0" HP="40" ATK="45" DEF="35" SA="30" SD="40" SP="55" type1="Poison" type2="Flying" />
+		<row name="Golbat" cost_gold="0" cost_population="0" HP="75" ATK="80" DEF="70" SA="65" SD="75" SP="90" type1="Poison" type2="Flying" />
+		<row name="Oddish" cost_gold="0" cost_population="0" HP="45" ATK="50" DEF="55" SA="75" SD="65" SP="30" type1="Grass" type2="Poison" />
+		<row name="Gloom" cost_gold="0" cost_population="0" HP="60" ATK="65" DEF="70" SA="85" SD="75" SP="40" type1="Grass" type2="Poison" />
+		<row name="Vileplume" cost_gold="0" cost_population="0" HP="75" ATK="80" DEF="85" SA="110" SD="90" SP="50" type1="Grass" type2="Poison" />
+		<row name="Paras" cost_gold="0" cost_population="0" HP="35" ATK="70" DEF="55" SA="45" SD="55" SP="25" type1="Bug" type2="Grass" />
+		<row name="Parasect" cost_gold="0" cost_population="0" HP="60" ATK="95" DEF="80" SA="60" SD="80" SP="30" type1="Bug" type2="Grass" />
+		<row name="Venonat" cost_gold="0" cost_population="0" HP="60" ATK="55" DEF="50" SA="40" SD="55" SP="45" type1="Bug" type2="Poison" />
+		<row name="Venomoth" cost_gold="0" cost_population="0" HP="70" ATK="65" DEF="60" SA="90" SD="75" SP="90" type1="Bug" type2="Poison" />
+		<row name="Diglett" cost_gold="0" cost_population="0" HP="10" ATK="55" DEF="25" SA="35" SD="45" SP="95" type1="Ground" />
+		<row name="Dugtrio" cost_gold="0" cost_population="0" HP="35" ATK="100" DEF="50" SA="50" SD="70" SP="120" type1="Ground" />
+		<row name="Meowth" cost_gold="0" cost_population="0" HP="40" ATK="45" DEF="35" SA="40" SD="40" SP="90" type1="Normal" />
+		<row name="Persian" cost_gold="0" cost_population="0" HP="65" ATK="70" DEF="60" SA="65" SD="65" SP="115" type1="Normal" />
+		<row name="Psyduck" cost_gold="0" cost_population="0" HP="50" ATK="52" DEF="48" SA="65" SD="50" SP="55" type1="Water" />
+		<row name="Golduck" cost_gold="0" cost_population="0" HP="80" ATK="82" DEF="78" SA="95" SD="80" SP="85" type1="Water" />
+		<row name="Mankey" cost_gold="0" cost_population="0" HP="40" ATK="80" DEF="35" SA="35" SD="45" SP="70" type1="Fighting" />
+		<row name="Primeape" cost_gold="0" cost_population="0" HP="65" ATK="105" DEF="60" SA="60" SD="70" SP="95" type1="Fighting" />
+		<row name="Growlithe" cost_gold="0" cost_population="0" HP="55" ATK="70" DEF="45" SA="70" SD="50" SP="60" type1="Fire" />
+		<row name="Arcanine" cost_gold="0" cost_population="0" HP="90" ATK="110" DEF="80" SA="100" SD="80" SP="95" type1="Fire" />
+		<row name="Poliwag" cost_gold="0" cost_population="0" HP="40" ATK="50" DEF="40" SA="40" SD="40" SP="90" type1="Water" />
+		<row name="Poliwhirl" cost_gold="0" cost_population="0" HP="65" ATK="65" DEF="65" SA="50" SD="50" SP="90" type1="Water" />
+		<row name="Poliwrath" cost_gold="0" cost_population="0" HP="95" ATK="95" DEF="95" SA="70" SD="90" SP="70" type1="Water" />
+		<row name="Abra" cost_gold="0" cost_population="0" HP="25" ATK="20" DEF="15" SA="105" SD="55" SP="90" type1="Psychic" />
+		<row name="Kadabra" cost_gold="0" cost_population="0" HP="40" ATK="35" DEF="30" SA="120" SD="70" SP="105" type1="Psychic" />
+		<row name="Alakazam" cost_gold="0" cost_population="0" HP="55" ATK="50" DEF="45" SA="135" SD="95" SP="120" type1="Psychic" />
+		<row name="Machop" cost_gold="0" cost_population="0" HP="70" ATK="80" DEF="50" SA="35" SD="35" SP="35" type1="Fighting" />
+		<row name="Machoke" cost_gold="0" cost_population="0" HP="80" ATK="100" DEF="70" SA="50" SD="60" SP="45" type1="Fighting" />
+		<row name="Machamp" cost_gold="0" cost_population="0" HP="90" ATK="130" DEF="80" SA="65" SD="85" SP="35" type1="Fighting" />
+		<row name="Bellsprout" cost_gold="0" cost_population="0" HP="50" ATK="75" DEF="35" SA="70" SD="30" SP="40" type1="Grass" type2="Poison" />
+		<row name="Weepinbell" cost_gold="0" cost_population="0" HP="65" ATK="90" DEF="50" SA="85" SD="45" SP="55" type1="Grass" type2="Poison" />
+		<row name="Victreebel" cost_gold="0" cost_population="0" HP="80" ATK="105" DEF="65" SA="100" SD="70" SP="70" type1="Grass" type2="Poison" />
+		<row name="Tentacool" cost_gold="0" cost_population="0" HP="40" ATK="40" DEF="35" SA="50" SD="100" SP="70" type1="Water" type2="Poison" />
+		<row name="Tentacruel" cost_gold="0" cost_population="0" HP="80" ATK="70" DEF="65" SA="80" SD="120" SP="100" type1="Water" type2="Poison" />
+		<row name="Geodude" cost_gold="0" cost_population="0" HP="40" ATK="80" DEF="100" SA="30" SD="30" SP="20" type1="Rock" type2="Ground" />
+		<row name="Graveler" cost_gold="0" cost_population="0" HP="55" ATK="95" DEF="115" SA="45" SD="45" SP="35" type1="Rock" type2="Ground" />
+		<row name="Golem" cost_gold="0" cost_population="0" HP="80" ATK="120" DEF="130" SA="55" SD="65" SP="45" type1="Rock" type2="Ground" />
+		<row name="Ponyta" cost_gold="0" cost_population="0" HP="50" ATK="85" DEF="55" SA="65" SD="65" SP="70" type1="Fire" />
+		<row name="Rapidash" cost_gold="0" cost_population="0" HP="65" ATK="100" DEF="70" SA="80" SD="80" SP="105" type1="Fire" />
+		<row name="Slowpoke" cost_gold="0" cost_population="0" HP="90" ATK="65" DEF="65" SA="40" SD="40" SP="15" type1="Water" type2="Psychic" />
+		<row name="Slowbro" cost_gold="0" cost_population="0" HP="95" ATK="75" DEF="110" SA="100" SD="80" SP="30" type1="Water" type2="Psychic" />
+		<row name="Magnemite" cost_gold="0" cost_population="0" HP="25" ATK="35" DEF="70" SA="95" SD="55" SP="45" type1="Electric" type2="Steel" />
+		<row name="Magneton" cost_gold="0" cost_population="0" HP="50" ATK="60" DEF="95" SA="120" SD="70" SP="70" type1="Electric" type2="Steel" />
+		<row name="Farfetch'd" cost_gold="0" cost_population="0" HP="52" ATK="90" DEF="55" SA="58" SD="62" SP="60" type1="Normal" type2="Flying" />
+		<row name="Doduo" cost_gold="0" cost_population="0" HP="35" ATK="85" DEF="45" SA="35" SD="35" SP="75" type1="Normal" type2="Flying" />
+		<row name="Dodrio" cost_gold="0" cost_population="0" HP="60" ATK="110" DEF="70" SA="60" SD="60" SP="110" type1="Normal" type2="Flying" />
+		<row name="Seel" cost_gold="0" cost_population="0" HP="65" ATK="45" DEF="55" SA="45" SD="70" SP="45" type1="Water" />
+		<row name="Dewgong" cost_gold="0" cost_population="0" HP="90" ATK="70" DEF="80" SA="70" SD="95" SP="70" type1="Water" type2="Ice" />
+		<row name="Grimer" cost_gold="0" cost_population="0" HP="80" ATK="80" DEF="50" SA="40" SD="50" SP="25" type1="Poison" />
+		<row name="Muk" cost_gold="0" cost_population="0" HP="105" ATK="105" DEF="75" SA="65" SD="100" SP="50" type1="Poison" />
+		<row name="Shellder" cost_gold="0" cost_population="0" HP="30" ATK="65" DEF="100" SA="45" SD="25" SP="40" type1="Water" />
+		<row name="Cloyster" cost_gold="0" cost_population="0" HP="50" ATK="95" DEF="180" SA="85" SD="45" SP="70" type1="Water" type2="Ice" />
+		<row name="Gastly" cost_gold="0" cost_population="0" HP="30" ATK="35" DEF="30" SA="100" SD="35" SP="80" type1="Ghost" type2="Poison" />
+		<row name="Haunter" cost_gold="0" cost_population="0" HP="45" ATK="50" DEF="45" SA="115" SD="55" SP="95" type1="Ghost" type2="Poison" />
+		<row name="Gengar" cost_gold="0" cost_population="0" HP="60" ATK="65" DEF="60" SA="130" SD="75" SP="110" type1="Ghost" type2="Poison" />
+		<row name="Onix" cost_gold="0" cost_population="0" HP="35" ATK="45" DEF="160" SA="30" SD="45" SP="70" type1="Rock" type2="Ground" />" />
+		<row name="Drowzee" cost_gold="0" cost_population="0" HP="60" ATK="48" DEF="45" SA="43" SD="90" SP="42" type1="Psychic" />
+		<row name="Hypno" cost_gold="0" cost_population="0" HP="85" ATK="73" DEF="70" SA="73" SD="115" SP="67" type1="Psychic" />>
+		<row name="Krabby" cost_gold="0" cost_population="0" HP="30" ATK="105" DEF="90" SA="25" SD="25" SP="50" type1="Water" />
+		<row name="Kingler" cost_gold="0" cost_population="0" HP="55" ATK="130" DEF="115" SA="50" SD="50" SP="75" type1="Water" />
+		<row name="Voltorb" cost_gold="0" cost_population="0" HP="40" ATK="30" DEF="50" SA="55" SD="55" SP="100" type1="Electric" />
+		<row name="Electrode" cost_gold="0" cost_population="0" HP="60" ATK="50" DEF="70" SA="80" SD="80" SP="150" type1="Electric" />
+		<row name="Exeggcute" cost_gold="0" cost_population="0" HP="60" ATK="40" DEF="80" SA="60" SD="45" SP="40" type1="Grass" type2="Psychic" />
+		<row name="Exeggutor" cost_gold="0" cost_population="0" HP="95" ATK="95" DEF="85" SA="125" SD="75" SP="55" type1="Grass" type2="Psychic" />
+		<row name="Cubone" cost_gold="0" cost_population="0" HP="50" ATK="50" DEF="95" SA="40" SD="50" SP="35" type1="Ground" />
+		<row name="Marowak" cost_gold="0" cost_population="0" HP="60" ATK="80" DEF="110" SA="50" SD="80" SP="45" type1="Ground" />
+		<row name="Hitmonlee" cost_gold="0" cost_population="0" HP="50" ATK="120" DEF="53" SA="35" SD="110" SP="87" type1="Fighting" />
+		<row name="Hitmonchan" cost_gold="0" cost_population="0" HP="50" ATK="105" DEF="79" SA="35" SD="110" SP="76" type1="Fighting" />
+		<row name="Lickitung" cost_gold="0" cost_population="0" HP="90" ATK="55" DEF="75" SA="60" SD="75" SP="30" type1="Normal" />
+		<row name="Koffing" cost_gold="0" cost_population="0" HP="40" ATK="65" DEF="95" SA="60" SD="45" SP="35" type1="Poison" />
+		<row name="Weezing" cost_gold="0" cost_population="0" HP="65" ATK="90" DEF="120" SA="85" SD="70" SP="60" type1="Poison" />
+		<row name="Rhyhorn" cost_gold="0" cost_population="0" HP="80" ATK="85" DEF="95" SA="30" SD="30" SP="25" type1="Ground" type2="Rock" />
+		<row name="Rhydon" cost_gold="0" cost_population="0" HP="105" ATK="130" DEF="120" SA="45" SD="45" SP="40" type1="Ground" type2="Rock" />
+		<row name="Chansey" cost_gold="0" cost_population="0" HP="250" ATK="5" DEF="5" SA="35" SD="105" SP="50" type1="Normal" />
+		<row name="Tangela" cost_gold="0" cost_population="0" HP="65" ATK="55" DEF="115" SA="100" SD="40" SP="60" type1="Grass" />
+		<row name="Kangaskhan" cost_gold="0" cost_population="0" HP="105" ATK="95" DEF="80" SA="40" SD="80" SP="90" type1="Normal" />
+		<row name="Horsea" cost_gold="0" cost_population="0" HP="30" ATK="40" DEF="70" SA="70" SD="25" SP="60" type1="Water" />
+		<row name="Seadra" cost_gold="0" cost_population="0" HP="55" ATK="65" DEF="95" SA="95" SD="45" SP="85" type1="Water" />
+		<row name="Goldeen" cost_gold="0" cost_population="0" HP="45" ATK="67" DEF="60" SA="35" SD="50" SP="63" type1="Water" />
+		<row name="Seaking" cost_gold="0" cost_population="0" HP="80" ATK="92" DEF="65" SA="65" SD="80" SP="68" type1="Water" />
+		<row name="Staryu" cost_gold="0" cost_population="0" HP="30" ATK="45" DEF="55" SA="70" SD="55" SP="85" type1="Water" />
+		<row name="Starmie" cost_gold="0" cost_population="0" HP="60" ATK="75" DEF="85" SA="100" SD="85" SP="115" type1="Water" type2="Psychic" />
+		<row name="Scyther" cost_gold="0" cost_population="0" HP="70" ATK="110" DEF="80" SA="55" SD="80" SP="105" type1="Bug" type2="Flying" />
+		<row name="Jynx" cost_gold="0" cost_population="0" HP="65" ATK="50" DEF="35" SA="115" SD="95" SP="95" type1="Ice" type2="Psychic" />
+		<row name="Electabuzz" cost_gold="0" cost_population="0" HP="65" ATK="83" DEF="57" SA="95" SD="85" SP="105" type1="Ice" type2="Electric" />
+		<row name="Magmar" cost_gold="0" cost_population="0" HP="65" ATK="95" DEF="57" SA="100" SD="85" SP="93" type1="Ice" type2="Fire" />
+		<row name="Pinsir" cost_gold="0" cost_population="0" HP="65" ATK="125" DEF="100" SA="55" SD="70" SP="85" type1="Bug" />
+		<row name="Tauros" cost_gold="0" cost_population="0" HP="75" ATK="100" DEF="95" SA="40" SD="70" SP="110" type1="Normal" />
+		<row name="Magikarp" cost_gold="0" cost_population="0" HP="20" ATK="10" DEF="55" SA="15" SD="20" SP="80" type1="Water" />
+		<row name="Gyarados" cost_gold="0" cost_population="0" HP="95" ATK="125" DEF="79" SA="60" SD="100" SP="81" type1="Water" type2="Flying" />
+		<row name="Ditto" cost_gold="0" cost_population="0" HP="48" ATK="48" DEF="48" SA="48" SD="48" SP="48" type1="Normal" />
+		<row name="Eevee" cost_gold="0" cost_population="0" HP="55" ATK="55" DEF="50" SA="45" SD="65" SP="55" type1="Normal" />
+		<row name="Vaporeon" cost_gold="0" cost_population="0" HP="130" ATK="65" DEF="60" SA="110" SD="95" SP="65" type1="Water" />
+		<row name="Jolteon" cost_gold="0" cost_population="0" HP="65" ATK="65" DEF="60" SA="110" SD="95" SP="130" type1="Electric" />
+		<row name="Flareon" cost_gold="0" cost_population="0" HP="65" ATK="130" DEF="60" SA="95" SD="110" SP="65" type1="Fire" />
+		<row name="Porygon" cost_gold="0" cost_population="0" HP="65" ATK="60" DEF="70" SA="85" SD="75" SP="40" type1="Normal" />
+		<row name="Omanyte" cost_gold="0" cost_population="0" HP="35" ATK="40" DEF="100" SA="90" SD="55" SP="35" type1="Rock" type2="Water" />
+		<row name="Omastar" cost_gold="0" cost_population="0" HP="70" ATK="60" DEF="125" SA="115" SD="70" SP="55" type1="Rock" type2="Water" />
+		<row name="Kabuto" cost_gold="0" cost_population="0" HP="30" ATK="80" DEF="90" SA="55" SD="45" SP="55" type1="Rock" type2="Water" />
+		<row name="Kabutops" cost_gold="0" cost_population="0" HP="60" ATK="115" DEF="105" SA="65" SD="70" SP="80" type1="Rock" type2="Water" />
+		<row name="Aerodactyl" cost_gold="0" cost_population="0" HP="80" ATK="105" DEF="65" SA="60" SD="75" SP="130" type1="Rock" type2="Flying" />
+		<row name="Snorlax" cost_gold="0" cost_population="0" HP="160" ATK="110" DEF="65" SA="65" SD="110" SP="30" type1="Normal" />
+		<row name="Articuno" cost_gold="0" cost_population="0" HP="90" ATK="85" DEF="100" SA="95" SD="125" SP="85" type1="Ice" type2="Flying" />
+		<row name="Zapdos" cost_gold="0" cost_population="0" HP="90" ATK="90" DEF="85" SA="125" SD="90" SP="100" type1="Electric" type2="Flying" />
+		<row name="Moltres" cost_gold="0" cost_population="0" HP="90" ATK="100" DEF="90" SA="125" SD="85" SP="90" type1="Fire" type2="Flying" />
+		<row name="Dratini" cost_gold="0" cost_population="0" HP="41" ATK="64" DEF="45" SA="50" SD="50" SP="50" type1="Dragon" />
+		<row name="Dragonair" cost_gold="0" cost_population="0" HP="61" ATK="84" DEF="65" SA="70" SD="70" SP="70" type1="Dragon" />
+		<row name="Dragonite" cost_gold="0" cost_population="0" HP="91" ATK="134" DEF="95" SA="100" SD="100" SP="80" type1="Dragon" type2="Flying" />
+		<row name="Mewtwo" cost_gold="0" cost_population="0" HP="106" ATK="110" DEF="90" SA="154" SD="90" SP="130" type1="Psychic" />
+		<row name="Mew" cost_gold="0" cost_population="0" HP="100" ATK="100" DEF="100" SA="100" SD="100" SP="100" type1="Psychic" />
+	</rows>
+</sheet>
