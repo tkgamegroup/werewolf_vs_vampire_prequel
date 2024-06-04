@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<sheet name="building">
+	<columns>
+		<column type="D@uint" name="cost_wood" />
+		<column type="D@uint" name="cost_clay" />
+		<column type="D@uint" name="cost_iron" />
+		<column type="D@uint" name="cost_crop" />
+		<column type="D@uint" name="cost_gold" />
+		<column type="D@uint" name="cost_population" />
+		<column type="VD@uint" name="encounter_list" />
+		<column type="D@uint" name="capture_num" />
+	</columns>
+	<rows>
+		<row cost_wood="210" cost_clay="140" cost_iron="260" cost_crop="120" cost_gold="3100" cost_population="4" encounter_list="10,13,16,19" capture_num="1" />
+		<row cost_wood="270" cost_clay="180" cost_iron="335" cost_crop="155" cost_gold="4030" cost_population="2" />
+		<row cost_wood="345" cost_clay="230" cost_iron="425" cost_crop="195" cost_gold="5140" cost_population="2" />
+		<row cost_wood="440" cost_clay="295" cost_iron="545" cost_crop="250" cost_gold="10440" cost_population="2" />
+		<row cost_wood="565" cost_clay="375" cost_iron="700" cost_crop="320" cost_gold="11940" cost_population="2" />
+	</rows>
+</sheet>

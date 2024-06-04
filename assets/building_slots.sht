@@ -15,6 +15,6 @@
 		<row pos="-40,40" radius="8" building="House" />
 		<row pos="-40,-40" radius="8" building="House" />
 		<row pos="40,-40" radius="8" building="House" />
-		<row pos="20,-20" radius="8" building="Barracks" />
+		<row pos="20,-20" radius="8" building="Park" />
 	</rows>
 </sheet>
