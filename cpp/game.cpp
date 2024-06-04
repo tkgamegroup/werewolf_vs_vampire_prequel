@@ -60,6 +60,16 @@ const wchar_t* get_building_name(BuildingType type)
 	return L"";
 }
 
+BuildingType get_building_type_from_name(std::wstring_view name)
+{
+	for (auto i = 0; i < BuildingTypeCount; i++)
+	{
+		if (name == get_building_name((BuildingType)i))
+			return (BuildingType)i;
+	}
+	return BuildingTypeCount;
+}
+
 enum PokemonType
 {
 	PokemonNone,
@@ -80,7 +90,9 @@ enum PokemonType
 	PokemonDragon,
 	PokemonDark,
 	PokemonSteel,
-	PokemonFairy
+	PokemonFairy,
+
+	PokemonTypeCount
 };
 
 const wchar_t* get_pokemon_type_name(PokemonType type)
@@ -108,6 +120,43 @@ const wchar_t* get_pokemon_type_name(PokemonType type)
 	case PokemonFairy: return L"Fairy";
 	}
 	return L"";
+}
+
+PokemonType get_pokemon_type_from_name(std::wstring_view name)
+{
+	for (auto i = 0; i < PokemonTypeCount; i++)
+	{
+		if (name == get_pokemon_type_name((PokemonType)i))
+			return (PokemonType)i;
+	}
+	return PokemonNone;
+}
+
+cvec4 get_pokemon_type_color(PokemonType type)
+{
+	switch (type)
+	{
+	case PokemonNone: return cvec4(0, 0, 0, 255);
+	case PokemonNormal: return cvec4(168, 168, 120, 255);
+	case PokemonFire: return cvec4(240, 128, 48, 255);
+	case PokemonWater: return cvec4(104, 144, 240, 255);
+	case PokemonElectric: return cvec4(248, 208, 48, 255);
+	case PokemonGrass: return cvec4(120, 200, 80, 255);
+	case PokemonIce: return cvec4(152, 216, 216, 255);
+	case PokemonFighting: return cvec4(192, 48, 40, 255);
+	case PokemonPoison: return cvec4(160, 64, 160, 255);
+	case PokemonGround: return cvec4(224, 192, 104, 255);
+	case PokemonFlying: return cvec4(168, 144, 240, 255);
+	case PokemonPsychic: return cvec4(248, 88, 136, 255);
+	case PokemonBug: return cvec4(168, 184, 32, 255);
+	case PokemonRock: return cvec4(184, 160, 56, 255);
+	case PokemonGhost: return cvec4(112, 88, 152, 255);
+	case PokemonDragon: return cvec4(112, 56, 248, 255);
+	case PokemonDark: return cvec4(112, 88, 72, 255);
+	case PokemonSteel: return cvec4(184, 184, 208, 255);
+	case PokemonFairy: return cvec4(240, 182, 188, 255);
+	}
+	return cvec4(0, 0, 0, 255);
 }
 
 cCameraPtr camera;
@@ -255,6 +304,8 @@ struct UnitData
 	uint SA;
 	uint SD;
 	uint SP;
+	PokemonType type1 = PokemonNone;
+	PokemonType type2 = PokemonNone;
 	graphics::ImagePtr icon = nullptr;
 };
 std::vector<UnitData> unit_datas;
@@ -362,6 +413,8 @@ struct Unit
 	int SA;
 	int SD;
 	int SP;
+	PokemonType type1;
+	PokemonType type2;
 };
 
 struct City
@@ -637,7 +690,7 @@ struct Lord
 			if (type == BuildingTownCenter)
 				upgrade_building(city, i, true);
 		}
-		city.captures = { 1, 4, 7 };
+		city.captures = { 0, 3, 6 };
 
 		auto& tile = tiles[tile_id];
 		tile.type = TileCity;
@@ -741,6 +794,8 @@ struct Lord
 		unit.SA = unit_data.SA;
 		unit.SD = unit_data.SD;
 		unit.SP = unit_data.SP;
+		unit.type1 = unit_data.type1;
+		unit.type2 = unit_data.type2;
 		city.units.push_back(unit);
 	}
 
@@ -1306,6 +1361,8 @@ void Game::init()
 			data.SA = sht->get_as<uint>(row, "SA"_h);
 			data.SD = sht->get_as<uint>(row, "SD"_h);
 			data.SP = sht->get_as<uint>(row, "SP"_h);
+			data.type1 = get_pokemon_type_from_name(sht->get_as_wstr(row, "type1"_h));
+			data.type2 = get_pokemon_type_from_name(sht->get_as_wstr(row, "type2"_h));
 			{
 				wchar_t buf[32];
 				swprintf(buf, L"%03d", i + 1);
@@ -1322,15 +1379,7 @@ void Game::init()
 			auto& row = sht->rows[i];
 			slot.pos = sht->get_as<vec2>(row, "pos"_h);
 			slot.radius = sht->get_as<float>(row, "radius"_h);
-			auto building_name = sht->get_as_wstr(row, "building"_h);
-			for (auto j = 0; j < BuildingTypeCount; j++)
-			{
-				if (building_name == get_building_name((BuildingType)j))
-				{
-					slot.type = (BuildingType)j;
-					break;
-				}
-			}
+			slot.type = get_building_type_from_name(sht->get_as_wstr(row, "building"_h));
 			building_slots.push_back(slot);
 		}
 	}
@@ -2033,11 +2082,14 @@ void Game::on_render()
 								renderer->hud_image_button(vec2(64.f), unit_data.icon);
 								if (renderer->hud_item_hovered())
 									hovered_unit = i;
+								const auto scl = 0.7f;
 								renderer->hud_begin_layout(HudHorizontal);
-								renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceGold]);
-								renderer->hud_text(std::format(L"{}", unit_data.cost_gold), 24);
-								renderer->hud_image(vec2(27.f, 18.f), img_population);
-								renderer->hud_text(std::format(L"{}", unit_data.cost_population), 24);
+								renderer->hud_image(vec2(27.f, 18.f) * scl, img_resources[ResourceGold]);
+								renderer->hud_text(std::format(L"{}", unit_data.cost_gold), 24 * scl);
+								renderer->hud_end_layout();
+								renderer->hud_begin_layout(HudHorizontal);
+								renderer->hud_image(vec2(27.f, 18.f) * scl, img_population);
+								renderer->hud_text(std::format(L"{}", unit_data.cost_population), 24 * scl);
 								renderer->hud_end_layout();
 								renderer->hud_end_layout();
 							}
@@ -2049,6 +2101,12 @@ void Game::on_render()
 							auto& unit_data = unit_datas[unit_id];
 							renderer->hud_begin(mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255));
 							renderer->hud_text(unit_data.name);
+							renderer->hud_begin_layout(HudHorizontal);
+							if (unit_data.type1 != PokemonNone)
+								renderer->hud_text(get_pokemon_type_name(unit_data.type1), 20, get_pokemon_type_color(unit_data.type1));
+							if (unit_data.type2 != PokemonNone)
+								renderer->hud_text(get_pokemon_type_name(unit_data.type2), 20, get_pokemon_type_color(unit_data.type2));
+							renderer->hud_end_layout();
 							renderer->hud_text(std::format(L"HP {}\nATK {}\nDEF {}\nSA {}\nSD {}\nSP {}", unit_data.HP, unit_data.ATK, unit_data.DEF, unit_data.SA, unit_data.SD, unit_data.SP), 20);
 							renderer->hud_end();
 
@@ -2061,6 +2119,16 @@ void Game::on_render()
 					}
 						break;
 					case TabTroops:
+						renderer->hud_text(L"Units:");
+						for (auto i = 0; i < city.units.size(); i++)
+						{
+							auto& unit = city.units[i];
+							auto& unit_data = unit_datas[unit.id];
+							if (unit_data.icon)
+							{
+								renderer->hud_image_button(vec2(64.f), unit_data.icon);
+							}
+						}
 						break;
 					}
 				}
