@@ -417,6 +417,12 @@ struct Unit
 	PokemonType type2;
 };
 
+struct PokemonCapture
+{
+	uint unit_id;
+	uint exclusive_id;
+};
+
 struct City
 {
 	uint id;
@@ -424,7 +430,7 @@ struct City
 	uint lord_id;
 	uint loyalty;
 	std::vector<Building> buildings;
-	std::vector<uint> captures;
+	std::vector<PokemonCapture> captures;
 	std::vector<Unit> units;
 
 	int get_building_lv(BuildingType type, int slot = -1)
@@ -435,6 +441,25 @@ struct City
 				return building.lv;
 		}
 		return -1;
+	}
+
+	void add_capture(uint unit_id)
+	{
+		PokemonCapture capture;
+		capture.unit_id = unit_id;
+		capture.exclusive_id = 0;
+		captures.push_back(capture);
+	}
+
+	void add_capture_exclusive_group(const std::vector<uint>& unit_ids, uint exclusive_id)
+	{
+		for (auto unit_id : unit_ids)
+		{
+			PokemonCapture capture;
+			capture.unit_id = unit_id;
+			capture.exclusive_id = exclusive_id;
+			captures.push_back(capture);
+		}
 	}
 };
 
@@ -690,7 +715,7 @@ struct Lord
 			if (type == BuildingTownCenter)
 				upgrade_building(city, i, true);
 		}
-		city.captures = { 0, 3, 6 };
+		city.add_capture_exclusive_group({ 0, 3, 6 }, "gosanke"_h);
 
 		auto& tile = tiles[tile_id];
 		tile.type = TileCity;
@@ -774,8 +799,9 @@ struct Lord
 		return true;
 	}
 
-	bool buy_unit(City& city, uint unit_id)
+	bool buy_unit(City& city, uint capture_id)
 	{
+		auto unit_id = city.captures[capture_id].unit_id;
 		auto& unit_data = unit_datas[unit_id];
 		if (resources[ResourceGold] < unit_data.cost_gold ||
 			provide_population < consume_population + unit_data.cost_population)
@@ -797,6 +823,20 @@ struct Lord
 		unit.type1 = unit_data.type1;
 		unit.type2 = unit_data.type2;
 		city.units.push_back(unit);
+
+		auto exclusive_id = city.captures[capture_id].exclusive_id;
+		if (exclusive_id != 0)
+		{
+			for (auto it = city.captures.begin(); it != city.captures.end();)
+			{
+				if (it->exclusive_id == exclusive_id)
+					it = city.captures.erase(it);
+				else
+					it++;
+			}
+		}
+		else
+			city.captures.erase(city.captures.begin() + capture_id);
 	}
 
 	uint get_production(ResourceType type)
@@ -927,12 +967,24 @@ void new_day()
 						auto& park_data = park_datas[building.lv - 1];
 						auto list_sz = (int)park_data.encounter_list.size();
 						for (auto i = 0; i < park_data.capture_num; i++)
-							city.captures.push_back(park_data.encounter_list[linearRand(0, list_sz - 1)]);
+							city.add_capture(park_data.encounter_list[linearRand(0, list_sz - 1)]);
 					}
 				}
 					break;
 				}
 			}
+		}
+	}
+
+	// do ai for all computer players
+	for (auto i = 1; i < lords.size(); i++)
+	{
+		auto& lord = lords[i];
+
+		for (auto& city : lord.cities)
+		{
+			if (!city.captures.empty())
+				lord.buy_unit(city, linearRand(0, (int)city.captures.size() - 1));
 
 			if (auto target_city = search_random_hostile_city(lord.id); target_city)
 			{
@@ -1490,23 +1542,18 @@ void Game::init()
 		}
 	}
 
-	// give a unit for testing
 	if (auto tile_id = search_lord_location(); tile_id != -1)
 	{
 		if (auto id = add_lord(tile_id); id != -1)
 		{
-			auto& lord = lords[id];
-			auto& city = lord.cities.front();
-			lord.buy_unit(city, 0);
+			;
 		}
 	}
 	if (auto tile_id = search_lord_location(); tile_id != -1)
 	{
 		if (auto id = add_lord(tile_id); id != -1)
 		{
-			auto& lord = lords[id];
-			auto& city = lord.cities.front();
-			lord.buy_unit(city, 0);
+			;
 		}
 	}
 
@@ -2075,7 +2122,7 @@ void Game::on_render()
 						renderer->hud_begin_layout(HudHorizontal);
 						for (auto i = 0; i < city.captures.size(); i++)
 						{
-							auto& unit_data = unit_datas[city.captures[i]];
+							auto& unit_data = unit_datas[city.captures[i].unit_id];
 							if (unit_data.icon)
 							{
 								renderer->hud_begin_layout(HudVertical);
@@ -2097,7 +2144,7 @@ void Game::on_render()
 						renderer->hud_end_layout();
 						if (hovered_unit != -1)
 						{
-							auto unit_id = city.captures[hovered_unit];
+							auto unit_id = city.captures[hovered_unit].unit_id;
 							auto& unit_data = unit_datas[unit_id];
 							renderer->hud_begin(mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255));
 							renderer->hud_text(unit_data.name);
@@ -2111,10 +2158,7 @@ void Game::on_render()
 							renderer->hud_end();
 
 							if (input->mpressed(Mouse_Left))
-							{
-								lord.buy_unit(city, unit_id);
-								city.captures.erase(city.captures.begin() + hovered_unit);
-							}
+								lord.buy_unit(city, hovered_unit);
 						}
 					}
 						break;
@@ -2129,6 +2173,7 @@ void Game::on_render()
 								renderer->hud_image_button(vec2(64.f), unit_data.icon);
 							}
 						}
+						renderer->hud_text(L"Troops:");
 						break;
 					}
 				}
