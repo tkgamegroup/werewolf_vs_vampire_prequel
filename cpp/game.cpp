@@ -567,7 +567,7 @@ struct BattleTroop
 		uint unit_id;
 		int HP;
 		int HP_MAX;
-		vec3 init_pos;
+		vec2 init_pos;
 		vec2 pos; float ang; vec2 scl; float alpha;
 		uint damage = 0;
 		std::wstring label;
@@ -955,6 +955,7 @@ cvec4 hsv(float h, float s, float v, float a)
 GameState state = GameInit;
 BattleTroop battle_troops[2];
 uint battle_action_side = 0;
+uint city_damge = 0;
 float troop_anim_time = 0.f;
 float battle_time = 0.f;
 float anim_remain = 0;
@@ -1357,16 +1358,36 @@ void step_battle()
 
 		if (action_troop.action_idx == -1)
 		{
+			{
+				auto troop = battle_troops[1].troop;
+				auto& lord = lords[troop->lord_id];
+				for (auto it = lord.troops.begin(); it != lord.troops.end(); it++)
+				{
+					if (&*it == troop)
+					{
+						lord.troops.erase(it);
+						break;
+					}
+				}
+			}
+
+			auto& city = *battle_troops[0].city;
+			if (city.loyalty > city_damge)
+				city.loyalty -= city_damge;
+			else
+				city.loyalty = 0;
+			city_damge = 0;
+
 			state = GameNight;
 			battle_troops[0].troop = battle_troops[1].troop = nullptr;
-			battle_troops[1].city = nullptr;
+			battle_troops[0].city = nullptr;
 			return;
 		}
 
 		if (action_troop.action_idx >= action_troop.troop->units.size())
 		{
 			action_troop.action_idx = -1;
-			anim_remain = 2.f;
+			anim_remain = 1.5f;
 			return;
 		}
 
@@ -1374,17 +1395,22 @@ void step_battle()
 		auto& cast_unit_display = action_troop.unit_displays[action_troop.action_idx];
 
 		{
-			auto id = game.tween->begin_2d_targets(1);
+			auto id = game.tween->begin_2d_targets(2);
 			game.tween->setup_2d_target(id, 0, &cast_unit_display.pos, nullptr, &cast_unit_display.scl, nullptr);
-			game.tween->scale_to(id, vec2(1.1f), 0.3f);
-			//if (city.loyalty > damage)
-			//	city.loyalty -= damage;
-			//else
-			//	city.loyalty = 0;
+			game.tween->setup_2d_target(id, 1, &cast_unit_display.label_pos, nullptr, nullptr, nullptr);
+			game.tween->scale_to(id, vec2(1.1f), 0.2f);
 			auto lv = caster.original->lv;
 			auto damage = max(1U, lv / 10);
 			game.tween->set_callback(id, [&, damage]() {
-				cast_unit_display.get_state(wstr(damage));
+				cast_unit_display.label = wstr(damage);
+				cast_unit_display.label_pos = cast_unit_display.init_pos + vec2(0.f, 5.f);
+			});
+			game.tween->scale_to(id, vec2(1.f), 0.2f);
+			game.tween->set_target(id, 1);
+			game.tween->move_to(id, vec2(450.f, 300.f), 0.5f);
+			game.tween->set_callback(id, [&, damage]() {
+				cast_unit_display.label = L"";
+				city_damge += damage;
 			});
 			game.tween->end(id);
 		}
@@ -2458,15 +2484,18 @@ void Game::on_render()
 				}
 				if (display.state_text_remain > 0.f)
 				{
-					draw_text(display.state_text, 20, vec2(display.init_pos) + vec2(0.f, 5.f), vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
+					draw_text(display.state_text, 20, display.init_pos + vec2(0.f, 5.f), vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
 					display.state_text_remain -= delta_time;
 					if (display.state_text_remain <= 0.f)
 						display.state_text = L"";
 				}
 				if (!display.label.empty())
-					draw_text(display.label, 20, vec2(display.init_pos) + display.label_pos, vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
+					draw_text(display.label, 20, display.label_pos, vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
 			}
 		}
+
+		if (city_damge > 0)
+			draw_text(wstr(city_damge), 20, vec2(450.f, 300.f), vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
 	}
 
 	UniverseApplication::on_render();
