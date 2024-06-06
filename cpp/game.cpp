@@ -565,41 +565,13 @@ struct BattleTroop
 	struct UnitDisplay
 	{
 		uint unit_id;
-		int HP;
-		int HP_MAX;
+		uint HP_MAX;
+		uint HP;
 		vec2 init_pos;
 		vec2 pos; float ang; vec2 scl; float alpha;
 		uint damage = 0;
 		std::wstring label;
 		vec2 label_pos; float label_ang; vec2 label_scl; float label_alpha;
-		float damage_label_remain = 0.f;
-		std::wstring state_text;
-		float state_text_remain = 0.f;
-
-		void take_damage(uint _damage)
-		{
-			damage += _damage;
-			HP -= damage;
-			damage_label_remain = 0.3f;
-
-			if (HP <= 0)
-			{
-				add_event([this]() {
-					auto id = game.tween->begin_2d_targets(1);
-					game.tween->setup_2d_target(id, 0, nullptr, nullptr, nullptr, &alpha);
-					game.tween->alpha_to(id, 0.f, 0.5f);
-					game.tween->set_ease(id, EaseInCubic);
-					game.tween->end(id);
-					return false;
-				});
-			}
-		}
-
-		void get_state(const std::wstring& text)
-		{
-			state_text = text;
-			state_text_remain = 0.5f;
-		}
 	};
 
 	uint side;
@@ -622,6 +594,8 @@ struct BattleTroop
 			display.pos = display.init_pos;
 			display.scl = vec3(1.f);
 			display.alpha = 1.f;
+			display.HP_MAX = unit.HP_MAX;
+			display.HP = unit.HP;
 		}
 	}
 };
@@ -1182,6 +1156,7 @@ void step_troop_moving()
 							battle_troop.troop = nullptr;
 							battle_troop.city = &city;
 							battle_troop.action_idx = 0;
+							battle_troop.unit_displays.clear();
 						}
 						{
 							auto& battle_troop = battle_troops[1];
@@ -1301,7 +1276,7 @@ void step_battle()
 				target.HP -= damage;
 			else
 				target.HP = 0;
-			};
+		};
 
 		auto& action_troop = battle_troops[battle_action_side];
 		auto& other_troop = battle_troops[1 - battle_action_side];
@@ -1316,20 +1291,42 @@ void step_battle()
 		unit_take_damage(caster, target, target_damage);
 
 		{
-			auto id = game.tween->begin_2d_targets(1);
+			auto id = game.tween->begin_2d_targets(3);
 			game.tween->setup_2d_target(id, 0, &cast_unit_display.pos, nullptr, &cast_unit_display.scl, nullptr);
+			game.tween->setup_2d_target(id, 1, nullptr, nullptr, nullptr, &target_unit_display.alpha);
+			game.tween->setup_2d_target(id, 2, &target_unit_display.label_pos, nullptr, nullptr, nullptr);
 			auto target_pos = mix(cast_unit_display.pos, target_unit_display.pos, 0.9f);
 			game.tween->scale_to(id, vec2(1.5f), 0.3f);
 			game.tween->move_to(id, target_pos, 0.3f);
 			game.tween->set_ease(id, EaseInCubic);
+
+			game.tween->set_target(id, 2);
+			game.tween->set_channel(id, 2, true, false);
 			game.tween->set_callback(id, [&, target_damage]() {
-				target_unit_display.take_damage(target_damage);
+				target_unit_display.label = wstr(target_damage);
+				target_unit_display.label_pos = target_unit_display.init_pos + vec2(0.f, -45.f);
+				target_unit_display.HP = max(0, (int)target_unit_display.HP - target_damage);
 			});
+			game.tween->move_to(id, target_unit_display.init_pos + vec2(0.f, -60.f), 0.4f);
+			game.tween->set_callback(id, [&, target_damage]() {
+				target_unit_display.label = L"";
+			});
+
+			if (target.HP <= 0)
+			{
+				game.tween->set_target(id, 1);
+				game.tween->set_channel(id, 3, true, false);
+				game.tween->alpha_to(id, 0.f, 0.4f);
+				game.tween->set_ease(id, EaseInCubic);
+			}
+
+			game.tween->set_target(id, 0U);
+			game.tween->set_channel(id, 0, false);
 			game.tween->move_to(id, cast_unit_display.pos, 0.3f);
-			game.tween->newline(id);
+			game.tween->set_channel(id, 1);
 			game.tween->scale_to(id, vec2(1.f), 0.3f);
 			game.tween->end(id);
-			anim_remain = 1.3f;
+			anim_remain = 1.5f;
 		}
 
 		action_troop.action_idx++;
@@ -1344,7 +1341,7 @@ void step_battle()
 			{
 				if (battle_troop.troop->units[j].HP <= 0)
 				{
-					if (j < battle_troop.action_idx)
+					if (j <= battle_troop.action_idx && battle_troop.action_idx > 0)
 						battle_troop.action_idx--;
 					battle_troop.troop->units.erase(battle_troop.troop->units.begin() + j);
 					j--;
@@ -2473,22 +2470,7 @@ void Game::on_render()
 				if (unit_data.icon)
 					draw_image(unit_data.icon, pos, vec2(64.f) * display.scl.x, vec2(0.5f, 1.f), cvec4(255, 255, 255, 255 * display.alpha));
 				//draw_text(std::format(L"{}", display.ATK), 24, pos - vec2(21.f, 0.f), vec2(0.5f, 1.f), cvec4(255, 255, 255, 255 * display.alpha));
-				draw_text(std::format(L"{}", display.HP), 24, pos + vec2(21.f, 0.f), vec2(0.5f, 1.f), display.HP > 0 ? cvec4(255, 255, 255, 255 * display.alpha) : cvec4(255, 0, 0, 255 * display.alpha));
-				if (display.damage_label_remain > 0.f)
-				{
-					draw_image(img_be_hit, pos - vec2(0.f, 32.f), vec2(50.f), vec2(0.5f, 0.5f));
-					draw_text(std::format(L"-{}", display.damage), 40, pos - vec2(0.f, 32.f), vec2(0.5f, 0.5f), cvec4(0, 0, 0, 255), -vec2(2.f), cvec4(255));
-					display.damage_label_remain -= delta_time;
-					if (display.damage_label_remain <= 0.f)
-						display.damage = 0;
-				}
-				if (display.state_text_remain > 0.f)
-				{
-					draw_text(display.state_text, 20, display.init_pos + vec2(0.f, 5.f), vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
-					display.state_text_remain -= delta_time;
-					if (display.state_text_remain <= 0.f)
-						display.state_text = L"";
-				}
+				draw_text(std::format(L"{}/{}", display.HP, display.HP_MAX), 20, display.init_pos + vec2(0.f, 5.f), vec2(0.5f, 1.f));
 				if (!display.label.empty())
 					draw_text(display.label, 20, display.label_pos, vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
 			}
