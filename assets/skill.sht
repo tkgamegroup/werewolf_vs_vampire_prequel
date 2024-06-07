@@ -3,176 +3,177 @@
 	<columns>
 		<column type="D@std::wstring" name="name" width="200" />
 		<column type="D@std::wstring" name="type" width="200" />
+		<column type="D@std::wstring" name="category" width="200" />
 		<column type="D@uint" name="power" width="200" />
 		<column type="D@uint" name="acc" width="200" />
 		<column type="D@uint" name="pp" width="200" />
 		<column type="D@std::wstring" name="effect" width="200" />
 	</columns>
 	<rows>
-		<row name="Absorb" type="Grass" power="20" acc="100" pp="25" effect="User recovers half the HP inflicted on opponent." />
-		<row name="Acid" type="Poison" power="40" acc="100" pp="30" effect="May lower opponent's Special Defense." />
-		<row name="Acid Armor" type="Poison" power="0" acc="0" pp="20" effect="Sharply raises user's Defense." />
-		<row name="Agility" type="Psychic" power="0" acc="0" pp="30" effect="Sharply raises user's Speed." />
-		<row name="Amnesia" type="Psychic" power="0" acc="0" pp="20" effect="Sharply raises user's Special Defense." />
-		<row name="Aurora Beam" type="Ice" power="65" acc="100" pp="20" effect="May lower opponent's Attack." />
-		<row name="Barrage" type="Normal" power="15" acc="85" pp="20" effect="Hits 2-5 times in one turn." />
-		<row name="Barrier" type="Psychic" power="0" acc="0" pp="20" effect="Sharply raises user's Defense." />
-		<row name="Bide" type="Normal" power="0" acc="0" pp="10" effect="User takes damage for two turns then strikes back double." />
-		<row name="Bind" type="Normal" power="15" acc="85" pp="20" effect="Traps opponent, damaging them for 4-5 turns." />
-		<row name="Bite" type="Dark" power="60" acc="100" pp="25" effect="May cause flinching." />
-		<row name="Blizzard" type="Ice" power="110" acc="70" pp="5" effect="May freeze opponent." />
-		<row name="Body Slam" type="Normal" power="85" acc="100" pp="15" effect="May paralyze opponent." />
-		<row name="Bone Club" type="Ground" power="65" acc="85" pp="20" effect="May cause flinching." />
-		<row name="Bonemerang" type="Ground" power="50" acc="90" pp="10" effect="Hits twice in one turn." />
-		<row name="Bubble" type="Water" power="40" acc="100" pp="30" effect="May lower opponent's Speed." />
-		<row name="Bubble Beam" type="Water" power="65" acc="100" pp="20" effect="May lower opponent's Speed." />
-		<row name="Clamp" type="Water" power="35" acc="85" pp="15" effect="Traps opponent, damaging them for 4-5 turns." />
-		<row name="Comet Punch" type="Normal" power="18" acc="85" pp="15" effect="Hits 2-5 times in one turn." />
-		<row name="Confuse Ray" type="Ghost" power="0" acc="100" pp="10" effect="Confuses opponent." />
-		<row name="Confusion" type="Psychic" power="50" acc="100" pp="25" effect="May confuse opponent." />
-		<row name="Constrict" type="Normal" power="10" acc="100" pp="35" effect="May lower opponent's Speed by one stage." />
-		<row name="Conversion" type="Normal" power="0" acc="0" pp="30" effect="Changes user's type to that of its first move." />
-		<row name="Counter" type="Fighting" power="0" acc="100" pp="20" effect="When hit by a Physical Attack, user strikes back with 2x power." />
-		<row name="Crabhammer" type="Water" power="100" acc="90" pp="10" effect="High critical hit ratio." />
-		<row name="Cut" type="Normal" power="50" acc="95" pp="30" effect="" />
-		<row name="Defense Curl" type="Normal" power="0" acc="0" pp="40" effect="Raises user's Defense." />
-		<row name="Dig" type="Ground" power="80" acc="100" pp="10" effect="Digs underground on first turn, attacks on second. Can also escape from caves." />
-		<row name="Disable" type="Normal" power="0" acc="100" pp="20" effect="Opponent can't use its last attack for a few turns." />
-		<row name="Dizzy Punch" type="Normal" power="70" acc="100" pp="10" effect="May confuse opponent." />
-		<row name="Double Kick" type="Fighting" power="30" acc="100" pp="30" effect="Hits twice in one turn." />
-		<row name="Double Slap" type="Normal" power="15" acc="85" pp="10" effect="Hits 2-5 times in one turn." />
-		<row name="Double Team" type="Normal" power="0" acc="0" pp="15" effect="Raises user's Evasiveness." />
-		<row name="Double-Edge" type="Normal" power="120" acc="100" pp="15" effect="User receives recoil damage." />
-		<row name="Dragon Rage" type="Dragon" power="0" acc="100" pp="10" effect="Always inflicts 40 HP." />
-		<row name="Dream Eater" type="Psychic" power="100" acc="100" pp="15" effect="User recovers half the HP inflicted on a sleeping opponent." />
-		<row name="Drill Peck" type="Flying" power="80" acc="100" pp="20" effect="" />
-		<row name="Earthquake" type="Ground" power="100" acc="100" pp="10" effect="Power is doubled if opponent is underground from using Dig." />
-		<row name="Egg Bomb" type="Normal" power="100" acc="75" pp="10" effect="" />
-		<row name="Ember" type="Fire" power="40" acc="100" pp="25" effect="May burn opponent." />
-		<row name="Explosion" type="Normal" power="250" acc="100" pp="5" effect="User faints." />
-		<row name="Fire Blast" type="Fire" power="110" acc="85" pp="5" effect="May burn opponent." />
-		<row name="Fire Punch" type="Fire" power="75" acc="100" pp="15" effect="May burn opponent." />
-		<row name="Fire Spin" type="Fire" power="35" acc="85" pp="15" effect="Traps opponent, damaging them for 4-5 turns." />
-		<row name="Fissure" type="Ground" power="0" acc="30" pp="5" effect="One-Hit-KO, if it hits." />
-		<row name="Flamethrower" type="Fire" power="90" acc="100" pp="15" effect="May burn opponent." />
-		<row name="Flash" type="Normal" power="0" acc="100" pp="20" effect="Lowers opponent's Accuracy." />
-		<row name="Fly" type="Flying" power="90" acc="95" pp="15" effect="Flies up on first turn, attacks on second turn." />
-		<row name="Focus Energy" type="Normal" power="0" acc="0" pp="30" effect="Increases critical hit ratio." />
-		<row name="Fury Attack" type="Normal" power="15" acc="85" pp="20" effect="Hits 2-5 times in one turn." />
-		<row name="Fury Swipes" type="Normal" power="18" acc="80" pp="15" effect="Hits 2-5 times in one turn." />
-		<row name="Glare" type="Normal" power="0" acc="100" pp="30" effect="Paralyzes opponent." />
-		<row name="Growl" type="Normal" power="0" acc="100" pp="40" effect="Lowers opponent's Attack." />
-		<row name="Growth" type="Normal" power="0" acc="0" pp="20" effect="Raises user's Attack and Special Attack." />
-		<row name="Guillotine" type="Normal" power="0" acc="30" pp="5" effect="One-Hit-KO, if it hits." />
-		<row name="Gust" type="Flying" power="40" acc="100" pp="35" effect="Hits Pokémon using Fly/Bounce/Sky Drop with double power." />
-		<row name="Harden" type="Normal" power="0" acc="0" pp="30" effect="Raises user's Defense." />
-		<row name="Haze" type="Ice" power="0" acc="0" pp="30" effect="Resets all stat changes." />
-		<row name="Headbutt" type="Normal" power="70" acc="100" pp="15" effect="May cause flinching." />
-		<row name="High Jump Kick" type="Fighting" power="130" acc="90" pp="10" effect="If it misses, the user loses half their HP." />
-		<row name="Horn Attack" type="Normal" power="65" acc="100" pp="25" effect="" />
-		<row name="Horn Drill" type="Normal" power="0" acc="30" pp="5" effect="One-Hit-KO, if it hits." />
-		<row name="Hydro Pump" type="Water" power="110" acc="80" pp="5" effect="" />
-		<row name="Hyper Beam" type="Normal" power="150" acc="90" pp="5" effect="User must recharge next turn." />
-		<row name="Hyper Fang" type="Normal" power="80" acc="90" pp="15" effect="May cause flinching." />
-		<row name="Hypnosis" type="Psychic" power="0" acc="60" pp="20" effect="Puts opponent to sleep." />
-		<row name="Ice Beam" type="Ice" power="90" acc="100" pp="10" effect="May freeze opponent." />
-		<row name="Ice Punch" type="Ice" power="75" acc="100" pp="15" effect="May freeze opponent." />
-		<row name="Jump Kick" type="Fighting" power="100" acc="95" pp="10" effect="If it misses, the user loses half their HP." />
-		<row name="Karate Chop" type="Fighting" power="50" acc="100" pp="25" effect="High critical hit ratio." />
-		<row name="Kinesis" type="Psychic" power="0" acc="80" pp="15" effect="Lowers opponent's Accuracy." />
-		<row name="Leech Life" type="Bug" power="80" acc="100" pp="10" effect="User recovers half the HP inflicted on opponent." />
-		<row name="Leech Seed" type="Grass" power="0" acc="90" pp="10" effect="Drains HP from opponent each turn." />
-		<row name="Leer" type="Normal" power="0" acc="100" pp="30" effect="Lowers opponent's Defense." />
-		<row name="Lick" type="Ghost" power="30" acc="100" pp="30" effect="May paralyze opponent." />
-		<row name="Light Screen" type="Psychic" power="0" acc="0" pp="30" effect="Halves damage from Special attacks for 5 turns." />
-		<row name="Lovely Kiss" type="Normal" power="0" acc="75" pp="10" effect="Puts opponent to sleep." />
-		<row name="Low Kick" type="Fighting" power="0" acc="100" pp="20" effect="The heavier the opponent, the stronger the attack." />
-		<row name="Meditate" type="Psychic" power="0" acc="0" pp="40" effect="Raises user's Attack." />
-		<row name="Mega Drain" type="Grass" power="40" acc="100" pp="15" effect="User recovers half the HP inflicted on opponent." />
-		<row name="Mega Kick" type="Normal" power="120" acc="75" pp="5" effect="" />
-		<row name="Mega Punch" type="Normal" power="80" acc="85" pp="20" effect="" />
-		<row name="Metronome" type="Normal" power="0" acc="0" pp="10" effect="User performs almost any move in the game at random." />
-		<row name="Mimic" type="Normal" power="0" acc="0" pp="10" effect="Copies the opponent's last move." />
-		<row name="Minimize" type="Normal" power="0" acc="0" pp="10" effect="Sharply raises user's Evasiveness." />
-		<row name="Mirror Move" type="Flying" power="0" acc="0" pp="20" effect="User performs the opponent's last move." />
-		<row name="Mist" type="Ice" power="0" acc="0" pp="30" effect="User's stats cannot be changed for a period of time." />
-		<row name="Night Shade" type="Ghost" power="0" acc="100" pp="15" effect="Inflicts damage equal to user's level." />
-		<row name="Pay Day" type="Normal" power="40" acc="100" pp="20" effect="Money is earned after the battle." />
-		<row name="Peck" type="Flying" power="35" acc="100" pp="35" effect="" />
-		<row name="Petal Dance" type="Grass" power="120" acc="100" pp="10" effect="User attacks for 2-3 turns but then becomes confused." />
-		<row name="Pin Missile" type="Bug" power="25" acc="95" pp="20" effect="Hits 2-5 times in one turn." />
-		<row name="Poison Gas" type="Poison" power="0" acc="90" pp="40" effect="Poisons opponent." />
-		<row name="Poison Powder" type="Poison" power="0" acc="75" pp="35" effect="Poisons opponent." />
-		<row name="Poison Sting" type="Poison" power="15" acc="100" pp="35" effect="May poison the opponent." />
-		<row name="Pound" type="Normal" power="40" acc="100" pp="35" effect="" />
-		<row name="Psybeam" type="Psychic" power="65" acc="100" pp="20" effect="May confuse opponent." />
-		<row name="Psychic" type="Psychic" power="90" acc="100" pp="10" effect="May lower opponent's Special Defense." />
-		<row name="Psywave" type="Psychic" power="0" acc="100" pp="15" effect="Inflicts damage 50-150% of user's level." />
-		<row name="Quick Attack" type="Normal" power="40" acc="100" pp="30" effect="User attacks first." />
-		<row name="Rage" type="Normal" power="20" acc="100" pp="20" effect="Raises user's Attack when hit." />
-		<row name="Razor Leaf" type="Grass" power="55" acc="95" pp="25" effect="High critical hit ratio." />
-		<row name="Razor Wind" type="Normal" power="80" acc="100" pp="10" effect="Charges on first turn, attacks on second. High critical hit ratio." />
-		<row name="Recover" type="Normal" power="0" acc="0" pp="5" effect="User recovers half its max HP." />
-		<row name="Reflect" type="Psychic" power="0" acc="0" pp="20" effect="Halves damage from Physical attacks for 5 turns." />
-		<row name="Rest" type="Psychic" power="0" acc="0" pp="5" effect="User sleeps for 2 turns, but user is fully healed." />
-		<row name="Roar" type="Normal" power="0" acc="0" pp="20" effect="In battles, the opponent switches. In the wild, the Pokémon runs." />
-		<row name="Rock Slide" type="Rock" power="75" acc="90" pp="10" effect="May cause flinching." />
-		<row name="Rock Throw" type="Rock" power="50" acc="90" pp="15" effect="" />
-		<row name="Rolling Kick" type="Fighting" power="60" acc="85" pp="15" effect="May cause flinching." />
-		<row name="Sand Attack" type="Ground" power="0" acc="100" pp="15" effect="Lowers opponent's Accuracy." />
-		<row name="Scratch" type="Normal" power="40" acc="100" pp="35" effect="" />
-		<row name="Screech" type="Normal" power="0" acc="85" pp="40" effect="Sharply lowers opponent's Defense." />
-		<row name="Seismic Toss" type="Fighting" power="0" acc="100" pp="20" effect="Inflicts damage equal to user's level." />
-		<row name="Self-Destruct" type="Normal" power="200" acc="100" pp="5" effect="User faints." />
-		<row name="Sharpen" type="Normal" power="0" acc="0" pp="30" effect="Raises user's Attack." />
-		<row name="Sing" type="Normal" power="0" acc="55" pp="15" effect="Puts opponent to sleep." />
-		<row name="Skull Bash" type="Normal" power="130" acc="100" pp="10" effect="Raises Defense on first turn, attacks on second." />
-		<row name="Sky Attack" type="Flying" power="140" acc="90" pp="5" effect="Charges on first turn, attacks on second. May cause flinching. High critical hit ratio." />
-		<row name="Slam" type="Normal" power="80" acc="75" pp="20" effect="" />
-		<row name="Slash" type="Normal" power="70" acc="100" pp="20" effect="High critical hit ratio." />
-		<row name="Sleep Powder" type="Grass" power="0" acc="75" pp="15" effect="Puts opponent to sleep." />
-		<row name="Sludge" type="Poison" power="65" acc="100" pp="20" effect="May poison opponent." />
-		<row name="Smog" type="Poison" power="30" acc="70" pp="20" effect="May poison opponent." />
-		<row name="Smokescreen" type="Normal" power="0" acc="100" pp="20" effect="Lowers opponent's Accuracy." />
-		<row name="Soft-Boiled" type="Normal" power="0" acc="0" pp="5" effect="User recovers half its max HP." />
-		<row name="Solar Beam" type="Grass" power="120" acc="100" pp="10" effect="Charges on first turn, attacks on second." />
-		<row name="Sonic Boom" type="Normal" power="0" acc="90" pp="20" effect="Always inflicts 20 HP." />
-		<row name="Spike Cannon" type="Normal" power="20" acc="100" pp="15" effect="Hits 2-5 times in one turn." />
-		<row name="Splash" type="Normal" power="0" acc="0" pp="40" effect="Doesn't do ANYTHING." />
-		<row name="Spore" type="Grass" power="0" acc="100" pp="15" effect="Puts opponent to sleep." />
-		<row name="Stomp" type="Normal" power="65" acc="100" pp="20" effect="May cause flinching." />
-		<row name="Strength" type="Normal" power="80" acc="100" pp="15" effect="" />
-		<row name="String Shot" type="Bug" power="0" acc="95" pp="40" effect="Sharply lowers opponent's Speed." />
-		<row name="Struggle" type="Normal" power="50" acc="0" pp="0" effect="Only usable when all PP are gone. Hurts the user." />
-		<row name="Stun Spore" type="Grass" power="0" acc="75" pp="30" effect="Paralyzes opponent." />
-		<row name="Submission" type="Fighting" power="80" acc="80" pp="20" effect="User receives recoil damage." />
-		<row name="Substitute" type="Normal" power="0" acc="0" pp="10" effect="Uses HP to creates a decoy that takes hits." />
-		<row name="Super Fang" type="Normal" power="0" acc="90" pp="10" effect="Always takes off half of the opponent's HP." />
-		<row name="Supersonic" type="Normal" power="0" acc="55" pp="20" effect="Confuses opponent." />
-		<row name="Surf" type="Water" power="90" acc="100" pp="15" effect="Hits all adjacent Pokémon." />
-		<row name="Swift" type="Normal" power="60" acc="0" pp="20" effect="Ignores Accuracy and Evasiveness." />
-		<row name="Swords Dance" type="Normal" power="0" acc="0" pp="20" effect="Sharply raises user's Attack." />
-		<row name="Tackle" type="Normal" power="40" acc="100" pp="35" effect="" />
-		<row name="Tail Whip" type="Normal" power="0" acc="100" pp="30" effect="Lowers opponent's Defense." />
-		<row name="Take Down" type="Normal" power="90" acc="85" pp="20" effect="User receives recoil damage." />
-		<row name="Teleport" type="Psychic" power="0" acc="0" pp="20" effect="Allows user to flee wild battles; also warps player to last PokéCenter." />
-		<row name="Thrash" type="Normal" power="120" acc="100" pp="10" effect="User attacks for 2-3 turns but then becomes confused." />
-		<row name="Thunder" type="Electric" power="110" acc="70" pp="10" effect="May paralyze opponent." />
-		<row name="Thunder Punch" type="Electric" power="75" acc="100" pp="15" effect="May paralyze opponent." />
-		<row name="Thunder Shock" type="Electric" power="40" acc="100" pp="30" effect="May paralyze opponent." />
-		<row name="Thunder Wave" type="Electric" power="0" acc="90" pp="20" effect="Paralyzes opponent." />
-		<row name="Thunderbolt" type="Electric" power="90" acc="100" pp="15" effect="May paralyze opponent." />
-		<row name="Toxic" type="Poison" power="0" acc="90" pp="10" effect="Badly poisons opponent." />
-		<row name="Transform" type="Normal" power="0" acc="0" pp="10" effect="User takes on the form and attacks of the opponent." />
-		<row name="Tri Attack" type="Normal" power="80" acc="100" pp="10" effect="May paralyze, burn or freeze opponent." />
-		<row name="Twineedle" type="Bug" power="25" acc="100" pp="20" effect="Hits twice in one turn. May poison opponent." />
-		<row name="Vine Whip" type="Grass" power="45" acc="100" pp="25" effect="" />
-		<row name="Vise Grip" type="Normal" power="55" acc="100" pp="30" effect="" />
-		<row name="Water Gun" type="Water" power="40" acc="100" pp="25" effect="" />
-		<row name="Waterfall" type="Water" power="80" acc="100" pp="15" effect="May cause flinching." />
-		<row name="Whirlwind" type="Normal" power="0" acc="0" pp="20" effect="In battles, the opponent switches. In the wild, the Pokémon runs." />
-		<row name="Wing Attack" type="Flying" power="60" acc="100" pp="35" effect="" />
-		<row name="Withdraw" type="Water" power="0" acc="0" pp="40" effect="Raises user's Defense." />
-		<row name="Wrap" type="Normal" power="15" acc="90" pp="20" effect="Traps opponent, damaging them for 4-5 turns." />
+		<row name="Absorb" type="Grass" category="special" power="20" acc="100" pp="25" effect="User recovers half the HP inflicted on opponent." />
+		<row name="Acid" type="Poison" category="special" power="40" acc="100" pp="30" effect="May lower opponent's Special Defense." />
+		<row name="Acid Armor" type="Poison" category="status" power="0" acc="0" pp="20" effect="Sharply raises user's Defense." />
+		<row name="Agility" type="Psychic" category="status" power="0" acc="0" pp="30" effect="Sharply raises user's Speed." />
+		<row name="Amnesia" type="Psychic" category="status" power="0" acc="0" pp="20" effect="Sharply raises user's Special Defense." />
+		<row name="Aurora Beam" type="Ice" category="special" power="65" acc="100" pp="20" effect="May lower opponent's Attack." />
+		<row name="Barrage" type="Normal" category="physical" power="15" acc="85" pp="20" effect="Hits 2-5 times in one turn." />
+		<row name="Barrier" type="Psychic" category="status" power="0" acc="0" pp="20" effect="Sharply raises user's Defense." />
+		<row name="Bide" type="Normal" category="physical" power="0" acc="0" pp="10" effect="User takes damage for two turns then strikes back double." />
+		<row name="Bind" type="Normal" category="physical" power="15" acc="85" pp="20" effect="Traps opponent, damaging them for 4-5 turns." />
+		<row name="Bite" type="Dark" category="physical" power="60" acc="100" pp="25" effect="May cause flinching." />
+		<row name="Blizzard" type="Ice" category="special" power="110" acc="70" pp="5" effect="May freeze opponent." />
+		<row name="Body Slam" type="Normal" category="physical" power="85" acc="100" pp="15" effect="May paralyze opponent." />
+		<row name="Bone Club" type="Ground" category="physical" power="65" acc="85" pp="20" effect="May cause flinching." />
+		<row name="Bonemerang" type="Ground" category="physical" power="50" acc="90" pp="10" effect="Hits twice in one turn." />
+		<row name="Bubble" type="Water" category="special" power="40" acc="100" pp="30" effect="May lower opponent's Speed." />
+		<row name="Bubble Beam" type="Water" category="special" power="65" acc="100" pp="20" effect="May lower opponent's Speed." />
+		<row name="Clamp" type="Water" category="physical" power="35" acc="85" pp="15" effect="Traps opponent, damaging them for 4-5 turns." />
+		<row name="Comet Punch" type="Normal" category="physical" power="18" acc="85" pp="15" effect="Hits 2-5 times in one turn." />
+		<row name="Confuse Ray" type="Ghost" category="status" power="0" acc="100" pp="10" effect="Confuses opponent." />
+		<row name="Confusion" type="Psychic" category="special" power="50" acc="100" pp="25" effect="May confuse opponent." />
+		<row name="Constrict" type="Normal" category="physical" power="10" acc="100" pp="35" effect="May lower opponent's Speed by one stage." />
+		<row name="Conversion" type="Normal" category="status" power="0" acc="0" pp="30" effect="Changes user's type to that of its first move." />
+		<row name="Counter" type="Fighting" category="physical" power="0" acc="100" pp="20" effect="When hit by a Physical Attack, user strikes back with 2x power." />
+		<row name="Crabhammer" type="Water" category="physical" power="100" acc="90" pp="10" effect="High critical hit ratio." />
+		<row name="Cut" type="Normal" category="physical" power="50" acc="95" pp="30" effect="" />
+		<row name="Defense Curl" type="Normal" category="status" power="0" acc="0" pp="40" effect="Raises user's Defense." />
+		<row name="Dig" type="Ground" category="physical" power="80" acc="100" pp="10" effect="Digs underground on first turn, attacks on second. Can also escape from caves." />
+		<row name="Disable" type="Normal" category="status" power="0" acc="100" pp="20" effect="Opponent can't use its last attack for a few turns." />
+		<row name="Dizzy Punch" type="Normal" category="physical" power="70" acc="100" pp="10" effect="May confuse opponent." />
+		<row name="Double Kick" type="Fighting" category="physical" power="30" acc="100" pp="30" effect="Hits twice in one turn." />
+		<row name="Double Slap" type="Normal" category="physical" power="15" acc="85" pp="10" effect="Hits 2-5 times in one turn." />
+		<row name="Double Team" type="Normal" category="status" power="0" acc="0" pp="15" effect="Raises user's Evasiveness." />
+		<row name="Double-Edge" type="Normal" category="physical" power="120" acc="100" pp="15" effect="User receives recoil damage." />
+		<row name="Dragon Rage" type="Dragon" category="special" power="0" acc="100" pp="10" effect="Always inflicts 40 HP." />
+		<row name="Dream Eater" type="Psychic" category="special" power="100" acc="100" pp="15" effect="User recovers half the HP inflicted on a sleeping opponent." />
+		<row name="Drill Peck" type="Flying" category="physical" power="80" acc="100" pp="20" effect="" />
+		<row name="Earthquake" type="Ground" category="physical" power="100" acc="100" pp="10" effect="Power is doubled if opponent is underground from using Dig." />
+		<row name="Egg Bomb" type="Normal" category="physical" power="100" acc="75" pp="10" effect="" />
+		<row name="Ember" type="Fire" category="special" power="40" acc="100" pp="25" effect="May burn opponent." />
+		<row name="Explosion" type="Normal" category="physical" power="250" acc="100" pp="5" effect="User faints." />
+		<row name="Fire Blast" type="Fire" category="special" power="110" acc="85" pp="5" effect="May burn opponent." />
+		<row name="Fire Punch" type="Fire" category="physical" power="75" acc="100" pp="15" effect="May burn opponent." />
+		<row name="Fire Spin" type="Fire" category="special" power="35" acc="85" pp="15" effect="Traps opponent, damaging them for 4-5 turns." />
+		<row name="Fissure" type="Ground" category="physical" power="0" acc="30" pp="5" effect="One-Hit-KO, if it hits." />
+		<row name="Flamethrower" type="Fire" category="special" power="90" acc="100" pp="15" effect="May burn opponent." />
+		<row name="Flash" type="Normal" category="status" power="0" acc="100" pp="20" effect="Lowers opponent's Accuracy." />
+		<row name="Fly" type="Flying" category="physical" power="90" acc="95" pp="15" effect="Flies up on first turn, attacks on second turn." />
+		<row name="Focus Energy" type="Normal" category="status" power="0" acc="0" pp="30" effect="Increases critical hit ratio." />
+		<row name="Fury Attack" type="Normal" category="physical" power="15" acc="85" pp="20" effect="Hits 2-5 times in one turn." />
+		<row name="Fury Swipes" type="Normal" category="physical" power="18" acc="80" pp="15" effect="Hits 2-5 times in one turn." />
+		<row name="Glare" type="Normal" category="status" power="0" acc="100" pp="30" effect="Paralyzes opponent." />
+		<row name="Growl" type="Normal" category="status" power="0" acc="100" pp="40" effect="Lowers opponent's Attack." />
+		<row name="Growth" type="Normal" category="status" power="0" acc="0" pp="20" effect="Raises user's Attack and Special Attack." />
+		<row name="Guillotine" type="Normal" category="physical" power="0" acc="30" pp="5" effect="One-Hit-KO, if it hits." />
+		<row name="Gust" type="Flying" category="special" power="40" acc="100" pp="35" effect="Hits Pokémon using Fly/Bounce/Sky Drop with double power." />
+		<row name="Harden" type="Normal" category="status" power="0" acc="0" pp="30" effect="Raises user's Defense." />
+		<row name="Haze" type="Ice" category="status" power="0" acc="0" pp="30" effect="Resets all stat changes." />
+		<row name="Headbutt" type="Normal" category="physical" power="70" acc="100" pp="15" effect="May cause flinching." />
+		<row name="High Jump Kick" type="Fighting" category="physical" power="130" acc="90" pp="10" effect="If it misses, the user loses half their HP." />
+		<row name="Horn Attack" type="Normal" category="physical" power="65" acc="100" pp="25" effect="" />
+		<row name="Horn Drill" type="Normal" category="physical" power="0" acc="30" pp="5" effect="One-Hit-KO, if it hits." />
+		<row name="Hydro Pump" type="Water" category="special" power="110" acc="80" pp="5" effect="" />
+		<row name="Hyper Beam" type="Normal" category="special" power="150" acc="90" pp="5" effect="User must recharge next turn." />
+		<row name="Hyper Fang" type="Normal" category="physical" power="80" acc="90" pp="15" effect="May cause flinching." />
+		<row name="Hypnosis" type="Psychic" category="status" power="0" acc="60" pp="20" effect="Puts opponent to sleep." />
+		<row name="Ice Beam" type="Ice" category="special" power="90" acc="100" pp="10" effect="May freeze opponent." />
+		<row name="Ice Punch" type="Ice" category="physical" power="75" acc="100" pp="15" effect="May freeze opponent." />
+		<row name="Jump Kick" type="Fighting" category="physical" power="100" acc="95" pp="10" effect="If it misses, the user loses half their HP." />
+		<row name="Karate Chop" type="Fighting" category="physical" power="50" acc="100" pp="25" effect="High critical hit ratio." />
+		<row name="Kinesis" type="Psychic" category="status" power="0" acc="80" pp="15" effect="Lowers opponent's Accuracy." />
+		<row name="Leech Life" type="Bug" category="physical" power="80" acc="100" pp="10" effect="User recovers half the HP inflicted on opponent." />
+		<row name="Leech Seed" type="Grass" category="status" power="0" acc="90" pp="10" effect="Drains HP from opponent each turn." />
+		<row name="Leer" type="Normal" category="status" power="0" acc="100" pp="30" effect="Lowers opponent's Defense." />
+		<row name="Lick" type="Ghost" category="physical" power="30" acc="100" pp="30" effect="May paralyze opponent." />
+		<row name="Light Screen" type="Psychic" category="status" power="0" acc="0" pp="30" effect="Halves damage from Special attacks for 5 turns." />
+		<row name="Lovely Kiss" type="Normal" category="status" power="0" acc="75" pp="10" effect="Puts opponent to sleep." />
+		<row name="Low Kick" type="Fighting" category="physical" power="0" acc="100" pp="20" effect="The heavier the opponent, the stronger the attack." />
+		<row name="Meditate" type="Psychic" category="status" power="0" acc="0" pp="40" effect="Raises user's Attack." />
+		<row name="Mega Drain" type="Grass" category="special" power="40" acc="100" pp="15" effect="User recovers half the HP inflicted on opponent." />
+		<row name="Mega Kick" type="Normal" category="physical" power="120" acc="75" pp="5" effect="" />
+		<row name="Mega Punch" type="Normal" category="physical" power="80" acc="85" pp="20" effect="" />
+		<row name="Metronome" type="Normal" category="status" power="0" acc="0" pp="10" effect="User performs almost any move in the game at random." />
+		<row name="Mimic" type="Normal" category="status" power="0" acc="0" pp="10" effect="Copies the opponent's last move." />
+		<row name="Minimize" type="Normal" category="status" power="0" acc="0" pp="10" effect="Sharply raises user's Evasiveness." />
+		<row name="Mirror Move" type="Flying" category="status" power="0" acc="0" pp="20" effect="User performs the opponent's last move." />
+		<row name="Mist" type="Ice" category="status" power="0" acc="0" pp="30" effect="User's stats cannot be changed for a period of time." />
+		<row name="Night Shade" type="Ghost" category="special" power="0" acc="100" pp="15" effect="Inflicts damage equal to user's level." />
+		<row name="Pay Day" type="Normal" category="physical" power="40" acc="100" pp="20" effect="Money is earned after the battle." />
+		<row name="Peck" type="Flying" category="physical" power="35" acc="100" pp="35" effect="" />
+		<row name="Petal Dance" type="Grass" category="special" power="120" acc="100" pp="10" effect="User attacks for 2-3 turns but then becomes confused." />
+		<row name="Pin Missile" type="Bug" category="physical" power="25" acc="95" pp="20" effect="Hits 2-5 times in one turn." />
+		<row name="Poison Gas" type="Poison" category="status" power="0" acc="90" pp="40" effect="Poisons opponent." />
+		<row name="Poison Powder" type="Poison" category="status" power="0" acc="75" pp="35" effect="Poisons opponent." />
+		<row name="Poison Sting" type="Poison" category="physical" power="15" acc="100" pp="35" effect="May poison the opponent." />
+		<row name="Pound" type="Normal" category="physical" power="40" acc="100" pp="35" effect="" />
+		<row name="Psybeam" type="Psychic" category="special" power="65" acc="100" pp="20" effect="May confuse opponent." />
+		<row name="Psychic" type="Psychic" category="special" power="90" acc="100" pp="10" effect="May lower opponent's Special Defense." />
+		<row name="Psywave" type="Psychic" category="special" power="0" acc="100" pp="15" effect="Inflicts damage 50-150% of user's level." />
+		<row name="Quick Attack" type="Normal" category="physical" power="40" acc="100" pp="30" effect="User attacks first." />
+		<row name="Rage" type="Normal" category="physical" power="20" acc="100" pp="20" effect="Raises user's Attack when hit." />
+		<row name="Razor Leaf" type="Grass" category="physical" power="55" acc="95" pp="25" effect="High critical hit ratio." />
+		<row name="Razor Wind" type="Normal" category="special" power="80" acc="100" pp="10" effect="Charges on first turn, attacks on second. High critical hit ratio." />
+		<row name="Recover" type="Normal" category="status" power="0" acc="0" pp="5" effect="User recovers half its max HP." />
+		<row name="Reflect" type="Psychic" category="status" power="0" acc="0" pp="20" effect="Halves damage from Physical attacks for 5 turns." />
+		<row name="Rest" type="Psychic" category="status" power="0" acc="0" pp="5" effect="User sleeps for 2 turns, but user is fully healed." />
+		<row name="Roar" type="Normal" category="status" power="0" acc="0" pp="20" effect="In battles, the opponent switches. In the wild, the Pokémon runs." />
+		<row name="Rock Slide" type="Rock" category="physical" power="75" acc="90" pp="10" effect="May cause flinching." />
+		<row name="Rock Throw" type="Rock" category="physical" power="50" acc="90" pp="15" effect="" />
+		<row name="Rolling Kick" type="Fighting" category="physical" power="60" acc="85" pp="15" effect="May cause flinching." />
+		<row name="Sand Attack" type="Ground" category="status" power="0" acc="100" pp="15" effect="Lowers opponent's Accuracy." />
+		<row name="Scratch" type="Normal" category="physical" power="40" acc="100" pp="35" effect="" />
+		<row name="Screech" type="Normal" category="status" power="0" acc="85" pp="40" effect="Sharply lowers opponent's Defense." />
+		<row name="Seismic Toss" type="Fighting" category="physical" power="0" acc="100" pp="20" effect="Inflicts damage equal to user's level." />
+		<row name="Self-Destruct" type="Normal" category="physical" power="200" acc="100" pp="5" effect="User faints." />
+		<row name="Sharpen" type="Normal" category="status" power="0" acc="0" pp="30" effect="Raises user's Attack." />
+		<row name="Sing" type="Normal" category="status" power="0" acc="55" pp="15" effect="Puts opponent to sleep." />
+		<row name="Skull Bash" type="Normal" category="physical" power="130" acc="100" pp="10" effect="Raises Defense on first turn, attacks on second." />
+		<row name="Sky Attack" type="Flying" category="physical" power="140" acc="90" pp="5" effect="Charges on first turn, attacks on second. May cause flinching. High critical hit ratio." />
+		<row name="Slam" type="Normal" category="physical" power="80" acc="75" pp="20" effect="" />
+		<row name="Slash" type="Normal" category="physical" power="70" acc="100" pp="20" effect="High critical hit ratio." />
+		<row name="Sleep Powder" type="Grass" category="status" power="0" acc="75" pp="15" effect="Puts opponent to sleep." />
+		<row name="Sludge" type="Poison" category="special" power="65" acc="100" pp="20" effect="May poison opponent." />
+		<row name="Smog" type="Poison" category="special" power="30" acc="70" pp="20" effect="May poison opponent." />
+		<row name="Smokescreen" type="Normal" category="status" power="0" acc="100" pp="20" effect="Lowers opponent's Accuracy." />
+		<row name="Soft-Boiled" type="Normal" category="status" power="0" acc="0" pp="5" effect="User recovers half its max HP." />
+		<row name="Solar Beam" type="Grass" category="special" power="120" acc="100" pp="10" effect="Charges on first turn, attacks on second." />
+		<row name="Sonic Boom" type="Normal" category="special" power="0" acc="90" pp="20" effect="Always inflicts 20 HP." />
+		<row name="Spike Cannon" type="Normal" category="physical" power="20" acc="100" pp="15" effect="Hits 2-5 times in one turn." />
+		<row name="Splash" type="Normal" category="status" power="0" acc="0" pp="40" effect="Doesn't do ANYTHING." />
+		<row name="Spore" type="Grass" category="status" power="0" acc="100" pp="15" effect="Puts opponent to sleep." />
+		<row name="Stomp" type="Normal" category="physical" power="65" acc="100" pp="20" effect="May cause flinching." />
+		<row name="Strength" type="Normal" category="physical" power="80" acc="100" pp="15" effect="" />
+		<row name="String Shot" type="Bug" category="status" power="0" acc="95" pp="40" effect="Sharply lowers opponent's Speed." />
+		<row name="Struggle" type="Normal" category="physical" power="50" acc="0" pp="0" effect="Only usable when all PP are gone. Hurts the user." />
+		<row name="Stun Spore" type="Grass" category="status" power="0" acc="75" pp="30" effect="Paralyzes opponent." />
+		<row name="Submission" type="Fighting" category="physical" power="80" acc="80" pp="20" effect="User receives recoil damage." />
+		<row name="Substitute" type="Normal" category="status" power="0" acc="0" pp="10" effect="Uses HP to creates a decoy that takes hits." />
+		<row name="Super Fang" type="Normal" category="physical" power="0" acc="90" pp="10" effect="Always takes off half of the opponent's HP." />
+		<row name="Supersonic" type="Normal" category="status" power="0" acc="55" pp="20" effect="Confuses opponent." />
+		<row name="Surf" type="Water" category="special" power="90" acc="100" pp="15" effect="Hits all adjacent Pokémon." />
+		<row name="Swift" type="Normal" category="special" power="60" acc="0" pp="20" effect="Ignores Accuracy and Evasiveness." />
+		<row name="Swords Dance" type="Normal" category="status" power="0" acc="0" pp="20" effect="Sharply raises user's Attack." />
+		<row name="Tackle" type="Normal" category="physical" power="40" acc="100" pp="35" effect="" />
+		<row name="Tail Whip" type="Normal" category="status" power="0" acc="100" pp="30" effect="Lowers opponent's Defense." />
+		<row name="Take Down" type="Normal" category="physical" power="90" acc="85" pp="20" effect="User receives recoil damage." />
+		<row name="Teleport" type="Psychic" category="status" power="0" acc="0" pp="20" effect="Allows user to flee wild battles; also warps player to last PokéCenter." />
+		<row name="Thrash" type="Normal" category="physical" power="120" acc="100" pp="10" effect="User attacks for 2-3 turns but then becomes confused." />
+		<row name="Thunder" type="Electric" category="special" power="110" acc="70" pp="10" effect="May paralyze opponent." />
+		<row name="Thunder Punch" type="Electric" category="physical" power="75" acc="100" pp="15" effect="May paralyze opponent." />
+		<row name="Thunder Shock" type="Electric" category="special" power="40" acc="100" pp="30" effect="May paralyze opponent." />
+		<row name="Thunder Wave" type="Electric" category="status" power="0" acc="90" pp="20" effect="Paralyzes opponent." />
+		<row name="Thunderbolt" type="Electric" category="special" power="90" acc="100" pp="15" effect="May paralyze opponent." />
+		<row name="Toxic" type="Poison" category="status" power="0" acc="90" pp="10" effect="Badly poisons opponent." />
+		<row name="Transform" type="Normal" category="status" power="0" acc="0" pp="10" effect="User takes on the form and attacks of the opponent." />
+		<row name="Tri Attack" type="Normal" category="special" power="80" acc="100" pp="10" effect="May paralyze, burn or freeze opponent." />
+		<row name="Twineedle" type="Bug" category="physical" power="25" acc="100" pp="20" effect="Hits twice in one turn. May poison opponent." />
+		<row name="Vine Whip" type="Grass" category="physical" power="45" acc="100" pp="25" effect="" />
+		<row name="Vise Grip" type="Normal" category="physical" power="55" acc="100" pp="30" effect="" />
+		<row name="Water Gun" type="Water" category="special" power="40" acc="100" pp="25" effect="" />
+		<row name="Waterfall" type="Water" category="physical" power="80" acc="100" pp="15" effect="May cause flinching." />
+		<row name="Whirlwind" type="Normal" category="status" power="0" acc="0" pp="20" effect="In battles, the opponent switches. In the wild, the Pokémon runs." />
+		<row name="Wing Attack" type="Flying" category="physical" power="60" acc="100" pp="35" effect="" />
+		<row name="Withdraw" type="Water" category="status" power="0" acc="0" pp="40" effect="Raises user's Defense." />
+		<row name="Wrap" type="Normal" category="physical" power="15" acc="90" pp="20" effect="Traps opponent, damaging them for 4-5 turns." />
 	</rows>
 </sheet>
