@@ -73,7 +73,6 @@ BuildingType get_building_type_from_name(std::wstring_view name)
 
 enum PokemonType
 {
-	PokemonNone,
 	PokemonNormal,
 	PokemonFire,
 	PokemonWater,
@@ -100,7 +99,6 @@ const wchar_t* get_pokemon_type_name(PokemonType type)
 {
 	switch (type)
 	{
-	case PokemonNone: return L"None";
 	case PokemonNormal: return L"Normal";
 	case PokemonFire: return L"Fire";
 	case PokemonWater: return L"Water";
@@ -130,14 +128,13 @@ PokemonType get_pokemon_type_from_name(std::wstring_view name)
 		if (name == get_pokemon_type_name((PokemonType)i))
 			return (PokemonType)i;
 	}
-	return PokemonNone;
+	return PokemonTypeCount;
 }
 
 cvec4 get_pokemon_type_color(PokemonType type)
 {
 	switch (type)
 	{
-	case PokemonNone: return cvec4(0, 0, 0, 255);
 	case PokemonNormal: return cvec4(168, 168, 120, 255);
 	case PokemonFire: return cvec4(240, 128, 48, 255);
 	case PokemonWater: return cvec4(104, 144, 240, 255);
@@ -162,17 +159,34 @@ cvec4 get_pokemon_type_color(PokemonType type)
 
 float pokemon_type_effectiveness[PokemonTypeCount][PokemonTypeCount]; // attacker, defender
 
-const uint IV_VAL = 31;
-const uint BP_VAL = 252;
-
-uint calc_hp_stat(uint base, uint lv)
+enum SkillCategory
 {
-	return uint((base * 2 + IV_VAL + BP_VAL / 4) * lv / 100.f) + lv + 10;
+	SkillPhysical,
+	SkillSpecial,
+	SkillStatus,
+
+	SkillCategoryCount
+};
+
+const wchar_t* get_skill_category_name(SkillCategory type)
+{
+	switch (type)
+	{
+	case SkillPhysical: return L"Physical";
+	case SkillSpecial: return L"Special";
+	case SkillStatus: return L"Status";
+	}
+	return L"";
 }
 
-uint calc_stat(uint base, uint lv)
+SkillCategory get_skill_category_from_name(std::wstring_view name)
 {
-	return uint((base * 2 + IV_VAL + BP_VAL / 4) * lv / 100.f) + 5;
+	for (auto i = 0; i < SkillCategoryCount; i++)
+	{
+		if (name == get_skill_category_name((SkillCategory)i))
+			return (SkillCategory)i;
+	}
+	return SkillPhysical;
 }
 
 cCameraPtr camera;
@@ -313,6 +327,18 @@ std::vector<uint> find_path(uint start_id, uint end_id)
 	return ret;
 }
 
+struct SkillData
+{
+	std::wstring name;
+	PokemonType type;
+	SkillCategory category;
+	uint power;
+	uint acc;
+	uint pp;
+	std::wstring effect;
+};
+std::vector<SkillData> skill_datas;
+
 struct UnitData
 {
 	std::wstring name;
@@ -324,11 +350,92 @@ struct UnitData
 	uint SA;
 	uint SD;
 	uint SP;
-	PokemonType type1 = PokemonNone;
-	PokemonType type2 = PokemonNone;
+	PokemonType type1 = PokemonTypeCount;
+	PokemonType type2 = PokemonTypeCount;
+	std::vector<ivec2> skillset;
 	graphics::ImagePtr icon = nullptr;
 };
 std::vector<UnitData> unit_datas;
+
+struct Unit
+{
+	uint id;
+	uint lv;
+	uint exp;
+	int skills[4] = { -1, -1, -1, -1 };
+};
+
+struct UnitInstance
+{
+	Unit* original;
+	uint id;
+	int HP_MAX;
+	int HP;
+	int ATK;
+	int DEF;
+	int SA;
+	int SD;
+	int SP;
+	PokemonType type1;
+	PokemonType type2;
+	int skills[4] = { -1, -1, -1, -1 };
+
+	int choose_attack_skill()
+	{
+		auto n = 0;
+		uint cands[4];
+		for (auto i = 0; i < 4; i++)
+		{
+			auto skill_id = skills[i];
+			if (skill_id != -1)
+			{
+				auto& skill_data = skill_datas[skill_id];
+				if (skill_data.category != SkillStatus)
+				{
+					cands[n] = skill_id;
+					n++;
+				}
+			}
+		}
+		if (n == 0)
+			return -1;
+		return cands[linearRand(0, n - 1)];
+	}
+};
+
+const uint IV_VAL = 31;
+const uint BP_VAL = 252;
+
+uint calc_hp_stat(uint base, uint lv)
+{
+	return uint((base * 2 + IV_VAL + BP_VAL / 4) * lv / 100.f) + lv + 10;
+}
+
+uint calc_stat(uint base, uint lv)
+{
+	return uint((base * 2 + IV_VAL + BP_VAL / 4) * lv / 100.f) + 5;
+}
+
+uint calc_damage(UnitInstance& attacker, UnitInstance& defender, uint skill_id)
+{
+	auto& skill_data = skill_datas[skill_id];
+	if (skill_data.category == SkillStatus)
+		return 0;
+	auto effectiveness1 = 1.f;
+	if (defender.type1 != PokemonTypeCount)
+		effectiveness1 = pokemon_type_effectiveness[skill_data.type][defender.type1];
+	auto effectiveness2 = 1.f;
+	if (defender.type2 != PokemonTypeCount)
+		effectiveness2 = pokemon_type_effectiveness[skill_data.type][defender.type2];
+	if (effectiveness1 * effectiveness2 == 0.f)
+		return 0;
+	auto effectiveness = effectiveness1 * effectiveness2;
+	if (attacker.type1 == skill_data.type || attacker.type2 == skill_data.type)
+		effectiveness *= 1.5f;
+	auto A = skill_data.category == SkillPhysical ? attacker.ATK : attacker.SA;
+	auto D = skill_data.category == SkillPhysical ? defender.DEF : defender.SD;
+	return ((2.f * attacker.original->lv + 10.f) / 250.f * ((float)A / (float)D) * skill_data.power + 2.f) * effectiveness;
+}
 
 struct BuildingBaseData
 {
@@ -423,13 +530,6 @@ struct Building
 	uint lv = 0;
 };
 
-struct Unit
-{
-	uint id;
-	uint lv;
-	uint exp;
-};
-
 struct Troop
 {
 	std::vector<uint>	units;		// indices
@@ -442,6 +542,7 @@ struct PokemonCapture
 	uint unit_id;
 	uint exclusive_id;
 	uint lv;
+	int skills[4] = { -1, -1, -1, -1 };
 };
 
 struct City
@@ -465,33 +566,50 @@ struct City
 		return -1;
 	}
 
-	void add_capture(uint unit_id, uint lv)
+	void add_capture_ll(uint unit_id, uint exclusive_id, uint lv)
 	{
+		auto& unit_data = unit_datas[unit_id];
 		PokemonCapture capture;
 		capture.unit_id = unit_id;
-		capture.exclusive_id = 0;
+		capture.exclusive_id = exclusive_id;
 		capture.lv = lv;
+
+		auto n = 0;
+		for (auto it = unit_data.skillset.rbegin(); it != unit_data.skillset.rend(); it++)
+		{
+			if (it->x <= lv)
+			{
+				capture.skills[n] = it->y;
+				n++;
+				if (n >= 4)
+					break;
+			}
+		}
+
 		captures.push_back(capture);
+	}
+
+	void add_capture(uint unit_id, uint lv)
+	{
+		add_capture_ll(unit_id, 0, lv);
 	}
 
 	void add_exclusive_captures(const std::vector<uint>& unit_ids, uint exclusive_id, uint lv)
 	{
 		for (auto unit_id : unit_ids)
-		{
-			PokemonCapture capture;
-			capture.unit_id = unit_id;
-			capture.exclusive_id = exclusive_id;
-			capture.lv = lv;
-			captures.push_back(capture);
-		}
+			add_capture_ll(unit_id, exclusive_id, lv);
 	}
 
-	void add_unit(uint unit_id, uint lv)
+	void add_unit(uint unit_id, uint lv, int* skills)
 	{
+		auto& unit_data = unit_datas[unit_id];
+
 		Unit unit;
 		unit.id = unit_id;
 		unit.lv = lv;
 		unit.exp = 0;
+		if (skills)
+			memcpy(unit.skills, skills, sizeof(unit.skills));
 		units.push_back(unit);
 
 		troops.front().units.push_back(units.size() - 1);
@@ -502,21 +620,6 @@ struct City
 		troop.target = target;
 		troop.path = find_path(tile_id, target);
 	}
-};
-
-struct UnitInstance
-{
-	Unit* original;
-	uint id;
-	int HP_MAX;
-	int HP;
-	int ATK;
-	int DEF;
-	int SA;
-	int SD;
-	int SP;
-	PokemonType type1;
-	PokemonType type2;
 };
 
 struct TroopInstance
@@ -858,7 +961,7 @@ struct Lord
 		resources[ResourceGold] -= unit_data.cost_gold;
 		consume_population += unit_data.cost_population;
 
-		city.add_unit(capture.unit_id, capture.lv);
+		city.add_unit(capture.unit_id, capture.lv, capture.skills);
 
 		auto exclusive_id = capture.exclusive_id;
 		if (exclusive_id != 0)
@@ -1060,6 +1163,7 @@ void start_battle()
 					unit_ins.SP = calc_stat(unit_data.SP, unit.lv);
 					unit_ins.type1 = unit_data.type1;
 					unit_ins.type2 = unit_data.type2;
+					memcpy(unit_ins.skills, unit.skills, sizeof(unit_ins.skills));
 					troop_ins.units.push_back(unit_ins);
 				}
 				lord.troops.push_back(troop_ins);
@@ -1308,13 +1412,6 @@ void step_battle()
 		for (auto i = 0; i < 2; i++)
 			battle_troops[i].refresh_display();
 
-		auto unit_take_damage = [&](UnitInstance& caster, UnitInstance& target, uint damage) {
-			if (target.HP > damage)
-				target.HP -= damage;
-			else
-				target.HP = 0;
-		};
-
 		auto& action_troop = battle_troops[battle_action_side];
 		auto& other_troop = battle_troops[1 - battle_action_side];
 		auto& caster = action_troop.troop->units[action_troop.action_idx];
@@ -1323,9 +1420,9 @@ void step_battle()
 		auto& cast_unit_display = action_troop.unit_displays[action_troop.action_idx];
 		auto& target_unit_display = other_troop.unit_displays[target_idx];
 
-		auto double_attacked = false;
-		auto target_damage = caster.ATK;
-		unit_take_damage(caster, target, target_damage);
+		auto cast_skill = caster.choose_attack_skill();
+		auto target_damage = cast_skill == -1 ? 0 : calc_damage(caster, target, cast_skill);
+		target.HP = max(0, target.HP - (int)target_damage);
 
 		{
 			auto id = game.tween->begin_2d_targets(3);
@@ -1342,7 +1439,7 @@ void step_battle()
 			game.tween->set_callback(id, [&, target_damage]() {
 				target_unit_display.label = wstr(target_damage);
 				target_unit_display.label_pos = target_unit_display.init_pos + vec2(0.f, -45.f);
-				target_unit_display.HP = max(0, (int)target_unit_display.HP - target_damage);
+				target_unit_display.HP = max(0, (int)target_unit_display.HP - (int)target_damage);
 			});
 			game.tween->move_to(id, target_unit_display.init_pos + vec2(0.f, -60.f), 0.4f);
 			game.tween->set_callback(id, [&, target_damage]() {
@@ -1913,6 +2010,22 @@ void Game::init()
 		effectiveness[PokemonFairy] =		1.f;
 	}
 
+	if (auto sht = Sheet::get(L"assets/skill.sht"); sht)
+	{
+		for (auto i = 0; i < sht->rows.size(); i++)
+		{
+			SkillData data;
+			auto& row = sht->rows[i];
+			data.name = sht->get_as_wstr(row, "name"_h);
+			data.type = get_pokemon_type_from_name(sht->get_as_wstr(row, "type"_h));
+			data.category = get_skill_category_from_name(sht->get_as_wstr(row, "category"_h));
+			data.power = sht->get_as<uint>(row, "power"_h);
+			data.acc = sht->get_as<uint>(row, "acc"_h);
+			data.pp = sht->get_as<uint>(row, "pp"_h);
+			data.effect = sht->get_as_wstr(row, "effect"_h);
+			skill_datas.push_back(data);
+		}
+	}
 	//if (auto sht = Sheet::get(L"assets/units.sht"); sht)
 	//{
 	//	for (auto i = 0; i < sht->rows.size(); i++)
@@ -1949,6 +2062,29 @@ void Game::init()
 			data.SP = sht->get_as<uint>(row, "SP"_h);
 			data.type1 = get_pokemon_type_from_name(sht->get_as_wstr(row, "type1"_h));
 			data.type2 = get_pokemon_type_from_name(sht->get_as_wstr(row, "type2"_h));
+			{
+				auto str = sht->get_as_wstr(row, "skillset"_h);
+				for (auto t : SUW::split(str, ','))
+				{
+					auto sp = SUW::split(t, ':');
+					if (sp.size() == 2)
+					{
+						auto lv = s2t<uint>(std::wstring(sp[0]));
+						auto skill_name = std::wstring(sp[1]);
+						auto skill_id = -1;
+						for (auto i = 0; i < skill_datas.size(); i++)
+						{
+							if (skill_datas[i].name == skill_name)
+							{
+								skill_id = i;
+								break;
+							}
+						}
+						if (skill_id != -1)
+							data.skillset.push_back(ivec2(lv, skill_id));
+					}
+				}
+			}
 			{
 				wchar_t buf[32];
 				swprintf(buf, L"%03d", i + 1);
@@ -2074,11 +2210,6 @@ void Game::init()
 			data.read(row, sht);
 			resource_field_datas[ResourceCrop].push_back(data);
 		}
-	}
-
-	if (auto sht = Sheet::get(L"assets/skill.sht"); sht)
-	{
-
 	}
 
 	if (auto tile_id = search_lord_location(); tile_id != -1)
@@ -2600,12 +2731,14 @@ void Game::on_render()
 						auto& capture = city.captures[hovered_unit];
 						auto& unit_data = unit_datas[capture.unit_id];
 						renderer->hud_begin(mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255));
-						renderer->hud_text(unit_data.name);
+						renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(4.f, 0.f));
+
+						renderer->hud_begin_layout(HudVertical);
 						renderer->hud_text(std::format(L"{} LV {}", unit_data.name, capture.lv));
 						renderer->hud_begin_layout(HudHorizontal);
-						if (unit_data.type1 != PokemonNone)
+						if (unit_data.type1 != PokemonTypeCount)
 							renderer->hud_text(get_pokemon_type_name(unit_data.type1), 20, get_pokemon_type_color(unit_data.type1));
-						if (unit_data.type2 != PokemonNone)
+						if (unit_data.type2 != PokemonTypeCount)
 							renderer->hud_text(get_pokemon_type_name(unit_data.type2), 20, get_pokemon_type_color(unit_data.type2));
 						renderer->hud_end_layout();
 						renderer->hud_text(std::format(L"HP {}\nATK {}\nDEF {}\nSA {}\nSD {}\nSP {}",
@@ -2615,6 +2748,26 @@ void Game::on_render()
 							calc_stat(unit_data.SA, capture.lv),
 							calc_stat(unit_data.SD, capture.lv),
 							calc_stat(unit_data.SP, capture.lv)), 20);
+						renderer->hud_end_layout();
+
+						for (auto i = 0; i < 4; i++)
+						{
+							auto skill_id = capture.skills[i];
+							if (skill_id != -1)
+							{
+								auto& skill_data = skill_datas[skill_id];
+								renderer->hud_begin_layout(HudVertical);
+								renderer->hud_text(skill_data.name);
+								renderer->hud_text(get_pokemon_type_name(skill_data.type), 20, get_pokemon_type_color(skill_data.type));
+								if (skill_data.power > 0)
+									renderer->hud_text(std::format(L"Power {}", skill_data.power));
+								renderer->hud_text(skill_data.effect);
+								renderer->hud_end_layout();
+								renderer->hud_stroke_item();
+							}
+						}
+
+						renderer->hud_end_layout();
 						renderer->hud_end();
 
 						if (input->mpressed(Mouse_Left))
@@ -2731,12 +2884,11 @@ void Game::on_render()
 						auto& unit = city.units[troop.units[j]];
 						auto& unit_data = unit_datas[unit.id];
 						renderer->hud_begin(mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255));
-						renderer->hud_text(unit_data.name);
 						renderer->hud_text(std::format(L"{} LV {}", unit_data.name, unit.lv));
 						renderer->hud_begin_layout(HudHorizontal);
-						if (unit_data.type1 != PokemonNone)
+						if (unit_data.type1 != PokemonTypeCount)
 							renderer->hud_text(get_pokemon_type_name(unit_data.type1), 20, get_pokemon_type_color(unit_data.type1));
-						if (unit_data.type2 != PokemonNone)
+						if (unit_data.type2 != PokemonTypeCount)
 							renderer->hud_text(get_pokemon_type_name(unit_data.type2), 20, get_pokemon_type_color(unit_data.type2));
 						renderer->hud_end_layout();
 						renderer->hud_text(std::format(L"HP {}\nATK {}\nDEF {}\nSA {}\nSD {}\nSP {}",
@@ -2891,9 +3043,9 @@ void Game::on_render()
 			renderer->hud_begin(mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255));
 			renderer->hud_text(std::format(L"{} LV {}", unit_data.name, display.lv));
 			renderer->hud_begin_layout(HudHorizontal);
-			if (unit_data.type1 != PokemonNone)
+			if (unit_data.type1 != PokemonTypeCount)
 				renderer->hud_text(get_pokemon_type_name(display.type1), 20, get_pokemon_type_color(display.type1));
-			if (unit_data.type2 != PokemonNone)
+			if (unit_data.type2 != PokemonTypeCount)
 				renderer->hud_text(get_pokemon_type_name(display.type2), 20, get_pokemon_type_color(display.type2));
 			renderer->hud_end_layout();
 			renderer->hud_text(std::format(L"HP {}/{}\nATK {}\nDEF {}\nSA {}\nSD {}\nSP {}",

@@ -2,10 +2,6 @@
 <sheet name="units">
 	<columns>
 		<column type="D@std::wstring" name="name" />
-		<column type="D@uint" name="cost_wood" />
-		<column type="D@uint" name="cost_clay" />
-		<column type="D@uint" name="cost_iron" />
-		<column type="D@uint" name="cost_crop" />
 		<column type="D@uint" name="cost_gold" />
 		<column type="D@uint" name="cost_population" />
 		<column type="D@uint" name="HP" />
@@ -16,16 +12,16 @@
 		<column type="D@uint" name="SP" />
 		<column type="D@std::wstring" name="type1" />
 		<column type="D@std::wstring" name="type2" />
-
+		<column type="D@std::wstring" name="skillset" />
 	</columns>
 	<rows>
-		<row name="Bulbasaur" cost_gold="0" cost_population="0" HP="45" ATK="49" DEF="49" SA="65" SD="65" SP="45" type1="Grass" type2="Poison" />
+		<row name="Bulbasaur" cost_gold="0" cost_population="0" HP="45" ATK="49" DEF="49" SA="65" SD="65" SP="45" type1="Grass" type2="Poison" skillset="1:Growl,1:Tackle,7:Leech Seed,13:Vine Whip,20:Poison Powder,27:Razor Leaf,34:Growth,41:Sleep Powder,48:Solar Beam" />
 		<row name="Ivysaur" cost_gold="0" cost_population="0" HP="60" ATK="62" DEF="63" SA="80" SD="80" SP="60" type1="Grass" type2="Poison" />
 		<row name="Venusaur" cost_gold="0" cost_population="0" HP="80" ATK="82" DEF="83" SA="100" SD="100" SP="80" type1="Grass" type2="Poison" />
-		<row name="Charmander" cost_gold="0" cost_population="0" HP="39" ATK="52" DEF="43" SA="60" SD="50" SP="65" type1="Fire" />
+		<row name="Charmander" cost_gold="0" cost_population="0" HP="39" ATK="52" DEF="43" SA="60" SD="50" SP="65" type1="Fire" skillset="1:Growl,1:Scratch,9:Ember,15:Leer,22:Rage,30:Slash,38:Flamethrower,46:Fire Spin" />
 		<row name="Charmeleon" cost_gold="0" cost_population="0" HP="58" ATK="64" DEF="58" SA="80" SD="65" SP="80" type1="Fire" />
 		<row name="Charizard" cost_gold="0" cost_population="0" HP="78" ATK="84" DEF="78" SA="109" SD="85" SP="100" type1="Fire" type2="Flying" />
-		<row name="Squirtle" cost_gold="0" cost_population="0" HP="44" ATK="48" DEF="65" SA="50" SD="64" SP="43" type1="Water" />
+		<row name="Squirtle" cost_gold="0" cost_population="0" HP="44" ATK="48" DEF="65" SA="50" SD="64" SP="43" type1="Water" skillset="1:Tackle,1:Tail Whip,8:Bubble,15:Water Gun,22:Bite,28:Withdraw,35:Skull Bash,42:Hydro Pump" />
 		<row name="Wartortle" cost_gold="0" cost_population="0" HP="59" ATK="63" DEF="80" SA="65" SD="80" SP="58" type1="Water" />
 		<row name="Blastoise" cost_gold="0" cost_population="0" HP="79" ATK="83" DEF="100" SA="85" SD="105" SP="78" type1="Water" />
 		<row name="Caterpie" cost_gold="0" cost_population="0" HP="45" ATK="30" DEF="35" SA="20" SD="20" SP="45" type1="Bug" />
