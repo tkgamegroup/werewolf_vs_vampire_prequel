@@ -1,5 +1,6 @@
 #include "game.h"
 
+#include <flame/xml.h>
 #include <flame/foundation/sheet.h>
 #include <flame/foundation/system.h>
 #include <flame/graphics/canvas.h>
@@ -2073,6 +2074,11 @@ void Game::init()
 			data.read(row, sht);
 			resource_field_datas[ResourceCrop].push_back(data);
 		}
+	}
+
+	if (auto sht = Sheet::get(L"assets/skill.sht"); sht)
+	{
+
 	}
 
 	if (auto tile_id = search_lord_location(); tile_id != -1)
