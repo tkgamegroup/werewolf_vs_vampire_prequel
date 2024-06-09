@@ -215,6 +215,13 @@ graphics::ImagePtr img_be_hit;
 
 graphics::SamplerPtr sp_repeat;
 
+void draw_rect(const vec2& pos, const vec2& sz, const vec2& pivot = vec2(0.f), const cvec4& color = cvec4(255))
+{
+	auto p = pos;
+	p -= pivot * sz;
+	canvas->draw_rect_filled(p, p + sz, color);
+}
+
 void draw_image(graphics::ImagePtr img, const vec2& pos, const vec2& sz, const vec2& pivot = vec2(0.f), const cvec4& tint = cvec4(255))
 {
 	auto p = pos;
@@ -692,7 +699,7 @@ struct BattleTroop
 		uint unit_id;
 		vec2 init_pos;
 		vec2 pos; float ang; vec2 scl; float alpha;
-		uint damage = 0;
+		uint HP;
 		std::wstring label;
 		vec2 label_pos; float label_ang; vec2 label_scl; float label_alpha;
 	};
@@ -714,6 +721,7 @@ struct BattleTroop
 			auto& display = unit_displays[i];
 			display.unit_id = unit.id;
 			display.init_pos = vec3(136.f + i * 75.f, 240.f + 100.f * (1 - side), 0.f);
+			display.HP = unit.HP;
 			display.pos = display.init_pos;
 			display.scl = vec3(1.f);
 			display.alpha = 1.f;
@@ -1422,17 +1430,19 @@ void step_battle()
 		target.HP = max(0, target.HP - (int)target_damage);
 
 		{
-			auto id = game.tween->begin_2d_targets(3);
-			game.tween->setup_2d_target(id, 0, &cast_unit_display.pos, nullptr, &cast_unit_display.scl, nullptr);
-			game.tween->setup_2d_target(id, 1, nullptr, nullptr, nullptr, &target_unit_display.alpha);
-			game.tween->setup_2d_target(id, 2, &target_unit_display.label_pos, nullptr, nullptr, nullptr);
+			auto id = game.tween->begin_2d_targets();
+			game.tween->add_2d_target(id, &cast_unit_display.pos, nullptr, &cast_unit_display.scl, nullptr);
+			game.tween->add_2d_target(id, nullptr, nullptr, nullptr, &target_unit_display.alpha);
+			game.tween->add_2d_target(id, &target_unit_display.label_pos, nullptr, nullptr, nullptr);
+			game.tween->add_int_target(id, (int*)&target_unit_display.HP);
 			auto target_pos = mix(cast_unit_display.pos, target_unit_display.pos, 0.9f);
 			game.tween->scale_to(id, vec2(1.5f), 0.3f);
 			game.tween->move_to(id, target_pos, 0.3f);
 			game.tween->set_ease(id, EaseInCubic);
+			auto time_attacked = game.tween->get_time(id);
 
 			game.tween->set_target(id, 2);
-			game.tween->set_channel(id, 2, true, false);
+			game.tween->set_channel(id, 2, time_attacked);
 			game.tween->set_callback(id, [&, target_damage]() {
 				target_unit_display.label = wstr(target_damage);
 				target_unit_display.label_pos = target_unit_display.init_pos + vec2(0.f, -45.f);
@@ -1445,15 +1455,14 @@ void step_battle()
 			if (target.HP <= 0)
 			{
 				game.tween->set_target(id, 1);
-				game.tween->set_channel(id, 3, true, false);
 				game.tween->alpha_to(id, 0.f, 0.4f);
 				game.tween->set_ease(id, EaseInCubic);
 			}
 
 			game.tween->set_target(id, 0U);
-			game.tween->set_channel(id, 0, false);
+			game.tween->set_channel(id, 0, time_attacked);
 			game.tween->move_to(id, cast_unit_display.pos, 0.3f);
-			game.tween->set_channel(id, 1);
+			game.tween->set_channel(id, 1, time_attacked);
 			game.tween->scale_to(id, vec2(1.f), 0.3f);
 			game.tween->end(id);
 			anim_remain = 1.5f;
@@ -1507,9 +1516,9 @@ void step_battle()
 		auto& cast_unit_display = action_troop.unit_displays[action_troop.action_idx];
 
 		{
-			auto id = game.tween->begin_2d_targets(2);
-			game.tween->setup_2d_target(id, 0, &cast_unit_display.pos, nullptr, &cast_unit_display.scl, nullptr);
-			game.tween->setup_2d_target(id, 1, &cast_unit_display.label_pos, nullptr, nullptr, nullptr);
+			auto id = game.tween->begin_2d_targets();
+			game.tween->add_2d_target(id, &cast_unit_display.pos, nullptr, &cast_unit_display.scl, nullptr);
+			game.tween->add_2d_target(id, &cast_unit_display.label_pos, nullptr, nullptr, nullptr);
 			game.tween->scale_to(id, vec2(1.1f), 0.2f);
 			auto damage = max(1U, caster.lv / 10);
 			game.tween->set_callback(id, [&, damage]() {
@@ -1543,6 +1552,7 @@ void Game::init()
 
 	renderer->add_render_task(RenderModeShaded, camera, main_window, {}, graphics::ImageLayoutPresent);
 	canvas = renderer->render_tasks.front()->canvas;
+	hud->canvas = canvas;
 
 	Path::set_root(L"assets", L"assets");
 
@@ -2342,44 +2352,44 @@ void Game::on_render()
 
 	auto show_unit_detail = [&](const vec2& mpos, uint id, uint lv, uint HP, uint HP_MAX, uint ATK, uint DEF, uint SA, uint SD, uint SP, PokemonType type1, PokemonType type2, int* skills) {
 		auto& unit_data = unit_datas[id];
-		renderer->hud_begin(mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255), vec2(0.f, mpos.y > 540.f ? 1.f : 0.f));
-		renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(4.f, 0.f));
-		renderer->hud_begin_layout(HudVertical);
-		renderer->hud_text(std::format(L"{} LV {}", unit_data.name, lv));
-		renderer->hud_begin_layout(HudHorizontal);
+		hud->begin(mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255), vec2(0.f, mpos.y > 540.f ? 1.f : 0.f));
+		hud->begin_layout(HudHorizontal, vec2(0.f), vec2(4.f, 0.f));
+		hud->begin_layout(HudVertical);
+		hud->text(std::format(L"{} LV {}", unit_data.name, lv));
+		hud->begin_layout(HudHorizontal);
 		if (unit_data.type1 != PokemonTypeCount)
-			renderer->hud_text(get_pokemon_type_name(unit_data.type1), 20, get_pokemon_type_color(unit_data.type1));
+			hud->text(get_pokemon_type_name(unit_data.type1), 20, get_pokemon_type_color(unit_data.type1));
 		if (unit_data.type2 != PokemonTypeCount)
-			renderer->hud_text(get_pokemon_type_name(unit_data.type2), 20, get_pokemon_type_color(unit_data.type2));
-		renderer->hud_end_layout();
+			hud->text(get_pokemon_type_name(unit_data.type2), 20, get_pokemon_type_color(unit_data.type2));
+		hud->end_layout();
 		if (HP_MAX == 0)
-			renderer->hud_text(std::format(L"HP {}\nATK {}\nDEF {}\nSA {}\nSD {}\nSP {}", HP, ATK, DEF, SA, SD, SP), 20);
+			hud->text(std::format(L"HP {}\nATK {}\nDEF {}\nSA {}\nSD {}\nSP {}", HP, ATK, DEF, SA, SD, SP), 20);
 		else
-			renderer->hud_text(std::format(L"HP {}/{}\nATK {}\nDEF {}\nSA {}\nSD {}\nSP {}", HP, HP_MAX, ATK, DEF, SA, SD, SP), 20);
-		renderer->hud_end_layout();
+			hud->text(std::format(L"HP {}/{}\nATK {}\nDEF {}\nSA {}\nSD {}\nSP {}", HP, HP_MAX, ATK, DEF, SA, SD, SP), 20);
+		hud->end_layout();
 		for (auto i = 0; i < 4; i++)
 		{
 			auto skill_id = skills[i];
 			if (skill_id != -1)
 			{
 				auto& skill_data = skill_datas[skill_id];
-				renderer->hud_begin_layout(HudVertical);
-				renderer->hud_text(skill_data.name);
-				renderer->hud_text(get_pokemon_type_name(skill_data.type), 20, get_pokemon_type_color(skill_data.type));
+				hud->begin_layout(HudVertical);
+				hud->text(skill_data.name);
+				hud->text(get_pokemon_type_name(skill_data.type), 20, get_pokemon_type_color(skill_data.type));
 				if (skill_data.power > 0)
-					renderer->hud_text(std::format(L"Power {}", skill_data.power));
-				renderer->hud_text(skill_data.effect);
-				renderer->hud_end_layout();
-				renderer->hud_stroke_item();
+					hud->text(std::format(L"Power {}", skill_data.power));
+				hud->text(skill_data.effect);
+				hud->end_layout();
+				hud->stroke_item();
 			}
 		}
-		renderer->hud_end_layout();
-		renderer->hud_end();
+		hud->end_layout();
+		hud->end();
 	};
 
 	auto bottom_pannel_height = 275.f;
-	renderer->hud_begin(vec2(0.f, screen_size.y - bottom_pannel_height), vec2(screen_size.x, bottom_pannel_height), cvec4(0, 0, 0, 255));
-	auto rect = renderer->hud_hud_rect();
+	hud->begin(vec2(0.f, screen_size.y - bottom_pannel_height), vec2(screen_size.x, bottom_pannel_height), cvec4(0, 0, 0, 255));
+	auto rect = hud->wnd_rect();
 	if (selected_tile != -1)
 	{
 		auto& tile = tiles[selected_tile];
@@ -2388,43 +2398,43 @@ void Game::on_render()
 		case TileField:
 			if (main_player.has_territory(selected_tile))
 			{
-				renderer->hud_begin_layout(HudHorizontal);
+				hud->begin_layout(HudHorizontal);
 
 				auto show_build_resource_field = [&](ResourceType type) {
-					renderer->hud_begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-					renderer->hud_text(get_resource_field_name(type));
+					hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+					hud->text(get_resource_field_name(type));
 					if (!resource_field_datas[type].empty())
 					{
 						auto& first_level = resource_field_datas[type].front();
 
-						renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-						renderer->hud_text(L"Production: ", 22);
-						renderer->hud_image(vec2(20.f, 13.f), img_resources[type]);
-						renderer->hud_text(std::format(L"{}", first_level.production), 22);
-						renderer->hud_end_layout();
+						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+						hud->text(L"Production: ", 22);
+						hud->image(vec2(20.f, 13.f), img_resources[type]);
+						hud->text(std::format(L"{}", first_level.production), 22);
+						hud->end_layout();
 
-						renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-						renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceWood]);
-						renderer->hud_text(std::format(L"{}", first_level.cost_wood), 16);
-						renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceClay]);
-						renderer->hud_text(std::format(L"{}", first_level.cost_clay), 16);
-						renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceIron]);
-						renderer->hud_text(std::format(L"{}", first_level.cost_iron), 16);
-						renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
-						renderer->hud_text(std::format(L"{}", first_level.cost_crop), 16);
-						renderer->hud_end_layout();
-						renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-						renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceGold]);
-						renderer->hud_text(std::format(L"{}", first_level.cost_gold), 16);
-						renderer->hud_image(vec2(18.f, 12.f), img_population);
-						renderer->hud_text(std::format(L"{}", first_level.cost_population), 16);
-						renderer->hud_end_layout();
+						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+						hud->image(vec2(18.f, 12.f), img_resources[ResourceWood]);
+						hud->text(std::format(L"{}", first_level.cost_wood), 16);
+						hud->image(vec2(18.f, 12.f), img_resources[ResourceClay]);
+						hud->text(std::format(L"{}", first_level.cost_clay), 16);
+						hud->image(vec2(18.f, 12.f), img_resources[ResourceIron]);
+						hud->text(std::format(L"{}", first_level.cost_iron), 16);
+						hud->image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
+						hud->text(std::format(L"{}", first_level.cost_crop), 16);
+						hud->end_layout();
+						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+						hud->image(vec2(18.f, 12.f), img_resources[ResourceGold]);
+						hud->text(std::format(L"{}", first_level.cost_gold), 16);
+						hud->image(vec2(18.f, 12.f), img_population);
+						hud->text(std::format(L"{}", first_level.cost_population), 16);
+						hud->end_layout();
 
-						if (renderer->hud_button(L"Build", 18))
+						if (hud->button(L"Build", 18))
 							main_player.build_resource_field(selected_tile, type);
 					}
-					renderer->hud_end_layout();
-					renderer->hud_stroke_item();
+					hud->end_layout();
+					hud->stroke_item();
 				};
 
 				show_build_resource_field(ResourceWood);
@@ -2432,7 +2442,7 @@ void Game::on_render()
 				show_build_resource_field(ResourceIron);
 				show_build_resource_field(ResourceCrop);
 
-				renderer->hud_end_layout();
+				hud->end_layout();
 			}
 			break;
 		case TileCity:
@@ -2448,49 +2458,49 @@ void Game::on_render()
 			auto& lord = lords[tile.lord_id];
 			auto& city = lord.cities[lord.find_city(selected_tile)];
 
-			renderer->hud_begin_layout(HudVertical, vec2(0.f), vec2(0.f, 8.f));
-			renderer->hud_begin_layout(HudHorizontal);
-			renderer->hud_text(lord.id == main_player.id ? L"Your City" : L"Enemy's City");
+			hud->begin_layout(HudVertical, vec2(0.f), vec2(0.f, 8.f));
+			hud->begin_layout(HudHorizontal);
+			hud->text(lord.id == main_player.id ? L"Your City" : L"Enemy's City");
 			if (lord.id == main_player.id)
 			{
 				if (tab != TabBuildings)
 				{
-					renderer->hud_push_style_color(HudStyleColorButton, cvec4(127, 127, 127, 255));
-					if (renderer->hud_button(L"Buildings"))
+					hud->push_style_color(HudStyleColorButton, cvec4(127, 127, 127, 255));
+					if (hud->button(L"Buildings"))
 						tab = TabBuildings;
-					renderer->hud_pop_style_color(HudStyleColorButton);
+					hud->pop_style_color(HudStyleColorButton);
 				}
 				else
 				{
-					if (renderer->hud_button(L"Buildings"))
+					if (hud->button(L"Buildings"))
 						tab = TabBuildings;
 				}
 				if (tab != TabRecruit)
 				{
-					renderer->hud_push_style_color(HudStyleColorButton, cvec4(127, 127, 127, 255));
-					if (renderer->hud_button(L"Recruit"))
+					hud->push_style_color(HudStyleColorButton, cvec4(127, 127, 127, 255));
+					if (hud->button(L"Recruit"))
 						tab = TabRecruit;
-					renderer->hud_pop_style_color(HudStyleColorButton);
+					hud->pop_style_color(HudStyleColorButton);
 				}
 				else
 				{
-					if (renderer->hud_button(L"Recruit"))
+					if (hud->button(L"Recruit"))
 						tab = TabRecruit;
 				}
 				if (tab != TabTroops)
 				{
-					renderer->hud_push_style_color(HudStyleColorButton, cvec4(127, 127, 127, 255));
-					if (renderer->hud_button(L"Troops"))
+					hud->push_style_color(HudStyleColorButton, cvec4(127, 127, 127, 255));
+					if (hud->button(L"Troops"))
 						tab = TabTroops;
-					renderer->hud_pop_style_color(HudStyleColorButton);
+					hud->pop_style_color(HudStyleColorButton);
 				}
 				else
 				{
-					if (renderer->hud_button(L"Troops"))
+					if (hud->button(L"Troops"))
 						tab = TabTroops;
 				}
 			}
-			renderer->hud_end_layout();
+			hud->end_layout();
 			if (lord.id == main_player.id)
 			{
 				switch (tab)
@@ -2498,10 +2508,10 @@ void Game::on_render()
 				case TabBuildings:
 				{
 					auto circle_sz = 100.f;
-					renderer->hud_begin_layout(HudHorizontal);
-					renderer->hud_rect(vec2(circle_sz * 2.f + 28.f, bottom_pannel_height - 48.f), cvec4(0));
+					hud->begin_layout(HudHorizontal);
+					hud->rect(vec2(circle_sz * 2.f + 28.f, bottom_pannel_height - 48.f), cvec4(0));
 
-					auto c = renderer->hud_item_rect().a + vec2(circle_sz + 10.f, circle_sz + 10.f);
+					auto c = hud->item_rect().a + vec2(circle_sz + 10.f, circle_sz + 10.f);
 					vec2 corner_pos[6];
 					vec2 wall_rect[4 * 6];
 					for (auto i = 0; i < 6; i++)
@@ -2632,116 +2642,116 @@ void Game::on_render()
 						auto show_upgrade_building = [&]() {
 							if (auto next_level = get_building_base_data(type, building.lv); next_level)
 							{
-								renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceWood]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_wood), 16, main_player.resources[ResourceWood] >= next_level->cost_wood ? cvec4(255) : cvec4(255, 0, 0, 255));
-								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceClay]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_clay), 16, main_player.resources[ResourceClay] >= next_level->cost_clay ? cvec4(255) : cvec4(255, 0, 0, 255));
-								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceIron]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_iron), 16, main_player.resources[ResourceIron] >= next_level->cost_iron ? cvec4(255) : cvec4(255, 0, 0, 255));
-								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_crop), 16, main_player.resources[ResourceCrop] >= next_level->cost_crop ? cvec4(255) : cvec4(255, 0, 0, 255));
-								renderer->hud_end_layout();
-								renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-								renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceGold]);
-								renderer->hud_text(std::format(L"{}", next_level->cost_gold), 16, main_player.resources[ResourceGold] >= next_level->cost_gold ? cvec4(255) : cvec4(255, 0, 0, 255));
-								renderer->hud_image(vec2(18.f, 12.f), img_population);
-								renderer->hud_text(std::format(L"{}", next_level->cost_population), 16, (int)main_player.provide_population - (int)main_player.consume_population >= next_level->cost_population ? cvec4(255) : cvec4(255, 0, 0, 255));
-								renderer->hud_end_layout();
+								hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+								hud->image(vec2(18.f, 12.f), img_resources[ResourceWood]);
+								hud->text(std::format(L"{}", next_level->cost_wood), 16, main_player.resources[ResourceWood] >= next_level->cost_wood ? cvec4(255) : cvec4(255, 0, 0, 255));
+								hud->image(vec2(18.f, 12.f), img_resources[ResourceClay]);
+								hud->text(std::format(L"{}", next_level->cost_clay), 16, main_player.resources[ResourceClay] >= next_level->cost_clay ? cvec4(255) : cvec4(255, 0, 0, 255));
+								hud->image(vec2(18.f, 12.f), img_resources[ResourceIron]);
+								hud->text(std::format(L"{}", next_level->cost_iron), 16, main_player.resources[ResourceIron] >= next_level->cost_iron ? cvec4(255) : cvec4(255, 0, 0, 255));
+								hud->image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
+								hud->text(std::format(L"{}", next_level->cost_crop), 16, main_player.resources[ResourceCrop] >= next_level->cost_crop ? cvec4(255) : cvec4(255, 0, 0, 255));
+								hud->end_layout();
+								hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+								hud->image(vec2(18.f, 12.f), img_resources[ResourceGold]);
+								hud->text(std::format(L"{}", next_level->cost_gold), 16, main_player.resources[ResourceGold] >= next_level->cost_gold ? cvec4(255) : cvec4(255, 0, 0, 255));
+								hud->image(vec2(18.f, 12.f), img_population);
+								hud->text(std::format(L"{}", next_level->cost_population), 16, (int)main_player.provide_population - (int)main_player.consume_population >= next_level->cost_population ? cvec4(255) : cvec4(255, 0, 0, 255));
+								hud->end_layout();
 
-								if (renderer->hud_button(building.lv == 0 ? L"Build" : L"Upgrade", 18))
+								if (hud->button(building.lv == 0 ? L"Build" : L"Upgrade", 18))
 									main_player.upgrade_building(city, selected_building_slot);
 							}
 						};
 						switch (type)
 						{
 						case BuildingTownCenter:
-							renderer->hud_begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-							renderer->hud_text(std::format(L"Town Center LV: {}", building.lv));
+							hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+							hud->text(std::format(L"Town Center LV: {}", building.lv));
 							show_upgrade_building();
-							renderer->hud_end_layout();
-							renderer->hud_stroke_item();
+							hud->end_layout();
+							hud->stroke_item();
 							break;
 						case BuildingHouse:
 						{
-							renderer->hud_begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-							renderer->hud_text(std::format(L"House LV: {}", building.lv));
+							hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+							hud->text(std::format(L"House LV: {}", building.lv));
 							if (building.lv > 0)
 							{
 								auto& data = house_datas[building.lv - 1];
-								renderer->hud_text(std::format(L"Current Provide Population: {}", data.provide_population), 22);
+								hud->text(std::format(L"Current Provide Population: {}", data.provide_population), 22);
 							}
 							auto next_level = house_datas[building.lv];
-							renderer->hud_text(std::format(L"Level {} Provide Population: {}", building.lv + 1, next_level.provide_population), 22);
+							hud->text(std::format(L"Level {} Provide Population: {}", building.lv + 1, next_level.provide_population), 22);
 							show_upgrade_building();
-							renderer->hud_end_layout();
-							renderer->hud_stroke_item();
+							hud->end_layout();
+							hud->stroke_item();
 						}
 							break;
 						case BuildingBarracks:
 						{
-							renderer->hud_begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-							renderer->hud_text(std::format(L"Barracks LV: {}", building.lv));
+							hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+							hud->text(std::format(L"Barracks LV: {}", building.lv));
 							show_upgrade_building();
-							renderer->hud_end_layout();
-							renderer->hud_stroke_item();
+							hud->end_layout();
+							hud->stroke_item();
 						}
 							break;
 						case BuildingPark:
 						{
-							renderer->hud_begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-							renderer->hud_text(std::format(L"Park LV: {}", building.lv));
+							hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+							hud->text(std::format(L"Park LV: {}", building.lv));
 							show_upgrade_building();
-							renderer->hud_end_layout();
-							renderer->hud_stroke_item();
+							hud->end_layout();
+							hud->stroke_item();
 						}
 							break;
 						case BuildingTower:
-							renderer->hud_begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-							renderer->hud_text(std::format(L"Tower LV: {}", building.lv));
+							hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+							hud->text(std::format(L"Tower LV: {}", building.lv));
 							show_upgrade_building();
-							renderer->hud_end_layout();
-							renderer->hud_stroke_item();
+							hud->end_layout();
+							hud->stroke_item();
 							break;
 						case BuildingWall:
-							renderer->hud_begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-							renderer->hud_text(std::format(L"Wall LV: {}", building.lv));
+							hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+							hud->text(std::format(L"Wall LV: {}", building.lv));
 							show_upgrade_building();
-							renderer->hud_end_layout();
-							renderer->hud_stroke_item();
+							hud->end_layout();
+							hud->stroke_item();
 							break;
 						}
 					}
 
-					renderer->hud_end_layout();
+					hud->end_layout();
 				}
 					break;
 				case TabRecruit:
 				{
 					auto hovered_unit = -1;
-					renderer->hud_begin_layout(HudHorizontal);
+					hud->begin_layout(HudHorizontal);
 					for (auto i = 0; i < city.captures.size(); i++)
 					{
 						auto& unit_data = unit_datas[city.captures[i].unit_id];
 						if (unit_data.icon)
 						{
-							renderer->hud_begin_layout(HudVertical);
-							renderer->hud_image_button(vec2(64.f), unit_data.icon);
-							if (renderer->hud_item_hovered())
+							hud->begin_layout(HudVertical);
+							hud->image_button(vec2(64.f), unit_data.icon);
+							if (hud->item_hovered())
 								hovered_unit = i;
 							const auto scl = 0.7f;
-							renderer->hud_begin_layout(HudHorizontal);
-							renderer->hud_image(vec2(27.f, 18.f) * scl, img_resources[ResourceGold]);
-							renderer->hud_text(std::format(L"{}", unit_data.cost_gold), 24 * scl);
-							renderer->hud_end_layout();
-							renderer->hud_begin_layout(HudHorizontal);
-							renderer->hud_image(vec2(27.f, 18.f) * scl, img_population);
-							renderer->hud_text(std::format(L"{}", unit_data.cost_population), 24 * scl);
-							renderer->hud_end_layout();
-							renderer->hud_end_layout();
+							hud->begin_layout(HudHorizontal);
+							hud->image(vec2(27.f, 18.f) * scl, img_resources[ResourceGold]);
+							hud->text(std::format(L"{}", unit_data.cost_gold), 24 * scl);
+							hud->end_layout();
+							hud->begin_layout(HudHorizontal);
+							hud->image(vec2(27.f, 18.f) * scl, img_population);
+							hud->text(std::format(L"{}", unit_data.cost_population), 24 * scl);
+							hud->end_layout();
+							hud->end_layout();
 						}
 					}
-					renderer->hud_end_layout();
+					hud->end_layout();
 
 					if (hovered_unit != -1)
 					{
@@ -2764,7 +2774,7 @@ void Game::on_render()
 						auto& troop = city.troops[tidx];
 						const float size = 64.f;
 						const uint max_num = 7;
-						auto pos = renderer->hud_get_cursor();
+						auto pos = hud->get_cursor();
 						if (dragging_unit != -1)
 						{
 							if (mpos.y > pos.y && mpos.y < pos.y + size && mpos.x > pos.x + troop.units.size() * size)
@@ -2793,10 +2803,10 @@ void Game::on_render()
 							}
 						}
 						canvas->draw_rect(pos, pos + vec2(size * max_num, size), 1.f, cvec4(255));
-						renderer->hud_begin_layout(HudHorizontal);
-						renderer->hud_begin_layout(HudHorizontal, vec2(size * max_num, size));
+						hud->begin_layout(HudHorizontal);
+						hud->begin_layout(HudHorizontal, vec2(size * max_num, size));
 						if (troop.units.empty())
-							renderer->hud_rect(vec2(size), cvec4(0));
+							hud->rect(vec2(size), cvec4(0));
 						for (auto i = 0; i < troop.units.size(); i++)
 						{
 							auto idx = troop.units[i];
@@ -2804,9 +2814,9 @@ void Game::on_render()
 							auto& unit_data = unit_datas[unit.id];
 							if (unit_data.icon)
 							{
-								if (renderer->hud_image_button(vec2(size), unit_data.icon))
+								if (hud->image_button(vec2(size), unit_data.icon))
 									dragging_unit = idx;
-								if (renderer->hud_item_hovered())
+								if (hud->item_hovered())
 								{
 									hovered_unit = tidx * 100 + i;
 									if (dragging_unit != -1 && input->mreleased(Mouse_Left))
@@ -2833,24 +2843,24 @@ void Game::on_render()
 								}
 							}
 						}
-						renderer->hud_end_layout();
+						hud->end_layout();
 						if (tidx > 0)
 						{
-							renderer->hud_set_cursor(renderer->hud_get_cursor() + vec2(0.f, 16.f));
-							if (renderer->hud_image_button(vec2(32.f), img_target))
+							hud->set_cursor(hud->get_cursor() + vec2(0.f, 16.f));
+							if (hud->image_button(vec2(32.f), img_target))
 								dragging_target = tidx;
-							if (renderer->hud_item_hovered())
+							if (hud->item_hovered())
 								draw_image(img_target, tiles[troop.target].pos + vec2(tile_sz) * 0.5f, vec2(32.f), vec2(0.5f, 0.5f), cvec4(255, 255, 255, 200));
 						}
-						renderer->hud_end_layout();
+						hud->end_layout();
 					};
 
-					renderer->hud_text(L"In City:");
+					hud->text(L"In City:");
 						show_troop(0);
-					renderer->hud_text(L"Troops:");
+					hud->text(L"Troops:");
 					for (auto i = 1; i < city.troops.size(); i++)
 						show_troop(i);
-					if (renderer->hud_button(L"New"))
+					if (hud->button(L"New"))
 					{
 						auto& troop = city.troops.emplace_back();
 						troop.target = 0;
@@ -2898,7 +2908,7 @@ void Game::on_render()
 					break;
 				}
 			}
-			renderer->hud_end_layout();
+			hud->end_layout();
 
 		}
 			break;
@@ -2908,59 +2918,59 @@ void Game::on_render()
 				auto& resource_field = main_player.resource_fields[id];
 				if (!resource_field_datas[resource_field.type].empty())
 				{
-					renderer->hud_begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-					renderer->hud_text(std::format(L"{} LV: {}", get_resource_field_name(resource_field.type), resource_field.lv));
-					renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-					renderer->hud_text(L"Current Production: ", 22);
-					renderer->hud_image(vec2(20.f, 13.f), img_resources[resource_field.type]);
-					renderer->hud_text(std::format(L"{}", resource_field.production), 22);
-					renderer->hud_end_layout();
+					hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+					hud->text(std::format(L"{} LV: {}", get_resource_field_name(resource_field.type), resource_field.lv));
+					hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+					hud->text(L"Current Production: ", 22);
+					hud->image(vec2(20.f, 13.f), img_resources[resource_field.type]);
+					hud->text(std::format(L"{}", resource_field.production), 22);
+					hud->end_layout();
 					if (resource_field.lv < resource_field_datas[resource_field.type].size())
 					{
 						auto& next_level = resource_field_datas[resource_field.type][resource_field.lv];
 
-						renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-						renderer->hud_text(std::format(L"Level {} Production: ", resource_field.lv + 1), 22);
-						renderer->hud_image(vec2(20.f, 13.f), img_resources[resource_field.type]);
-						renderer->hud_text(std::format(L"{}", next_level.production), 22);
-						renderer->hud_end_layout();
+						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+						hud->text(std::format(L"Level {} Production: ", resource_field.lv + 1), 22);
+						hud->image(vec2(20.f, 13.f), img_resources[resource_field.type]);
+						hud->text(std::format(L"{}", next_level.production), 22);
+						hud->end_layout();
 
-						renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-						renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceWood]);
-						renderer->hud_text(std::format(L"{}", next_level.cost_wood), 16);
-						renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceClay]);
-						renderer->hud_text(std::format(L"{}", next_level.cost_clay), 16);
-						renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceIron]);
-						renderer->hud_text(std::format(L"{}", next_level.cost_iron), 16);
-						renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
-						renderer->hud_text(std::format(L"{}", next_level.cost_crop), 16);
-						renderer->hud_end_layout();
-						renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-						renderer->hud_image(vec2(18.f, 12.f), img_resources[ResourceGold]);
-						renderer->hud_text(std::format(L"{}", next_level.cost_gold), 16);
-						renderer->hud_image(vec2(18.f, 12.f), img_population);
-						renderer->hud_text(std::format(L"{}", next_level.cost_population), 16);
-						renderer->hud_end_layout();
+						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+						hud->image(vec2(18.f, 12.f), img_resources[ResourceWood]);
+						hud->text(std::format(L"{}", next_level.cost_wood), 16);
+						hud->image(vec2(18.f, 12.f), img_resources[ResourceClay]);
+						hud->text(std::format(L"{}", next_level.cost_clay), 16);
+						hud->image(vec2(18.f, 12.f), img_resources[ResourceIron]);
+						hud->text(std::format(L"{}", next_level.cost_iron), 16);
+						hud->image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
+						hud->text(std::format(L"{}", next_level.cost_crop), 16);
+						hud->end_layout();
+						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+						hud->image(vec2(18.f, 12.f), img_resources[ResourceGold]);
+						hud->text(std::format(L"{}", next_level.cost_gold), 16);
+						hud->image(vec2(18.f, 12.f), img_population);
+						hud->text(std::format(L"{}", next_level.cost_population), 16);
+						hud->end_layout();
 
-						if (renderer->hud_button(L"Upgrade", 18))
+						if (hud->button(L"Upgrade", 18))
 							main_player.upgrade_resource_field(resource_field);
 					}
-					renderer->hud_end_layout();
-					renderer->hud_stroke_item();
+					hud->end_layout();
+					hud->stroke_item();
 				}
 			}
 			break;
 		}
 	}
-	renderer->hud_end();
+	hud->end();
 
-	renderer->hud_begin(vec2(screen_size.x - 100.f, screen_size.y - 300.f), vec2(160.f, 300.f), cvec4(0, 0, 0, 255));
+	hud->begin(vec2(screen_size.x - 100.f, screen_size.y - 300.f), vec2(160.f, 300.f), cvec4(0, 0, 0, 255));
 	if (state == GameDay)
 	{
-		if (renderer->hud_button(L"Start Battle"))
+		if (hud->button(L"Start Battle"))
 			start_battle();
 	}
-	renderer->hud_end();
+	hud->end();
 
 	if (state == GameBattle)
 	{
@@ -2991,7 +3001,9 @@ void Game::on_render()
 				rect.b = rect.a + sz;
 				if (rect.contains(mpos))
 					hovered_unit = i * 100 + j;
-				draw_text(std::format(L"{}/{}", unit.HP, unit.HP_MAX), 20, display.init_pos + vec2(0.f, 5.f), vec2(0.5f, 1.f));
+				draw_rect(display.init_pos + vec2(-20.f, 5.f), vec2(40.f, 5.f), vec2(0.f), cvec4(150, 150, 150, 255));
+				draw_rect(display.init_pos + vec2(-20.f, 5.f), vec2(40.f * ((float)display.HP / (float)unit.HP_MAX), 5.f), vec2(0.f), cvec4(0, 255, 0, 255));
+				draw_text(std::format(L"{}/{}", display.HP, unit.HP_MAX), 20, display.init_pos + vec2(0.f, 8.f), vec2(0.5f, 1.f));
 				if (!display.label.empty())
 					draw_text(display.label, 20, display.label_pos, vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
 			}
@@ -3013,70 +3025,70 @@ void Game::on_render()
 		}
 	}
 
-	renderer->hud_begin(vec2(0.f, 0.f), vec2(screen_size.x, 20.f), cvec4(0, 0, 0, 255));
-	renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(16.f, 0.f));
-	renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-	renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceWood]);
-	renderer->hud_text(std::format(L"{} +{}", main_player.resources[ResourceWood], main_player.get_production(ResourceWood)), 24);
-	renderer->hud_end_layout();
-	if (renderer->hud_item_hovered())
+	hud->begin(vec2(0.f, 0.f), vec2(screen_size.x, 20.f), cvec4(0, 0, 0, 255));
+	hud->begin_layout(HudHorizontal, vec2(0.f), vec2(16.f, 0.f));
+	hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	hud->image(vec2(27.f, 18.f), img_resources[ResourceWood]);
+	hud->text(std::format(L"{} +{}", main_player.resources[ResourceWood], main_player.get_production(ResourceWood)), 24);
+	hud->end_layout();
+	if (hud->item_hovered())
 	{
-		renderer->hud_begin(mpos + vec2(0.f, 10.f));
-		renderer->hud_text(std::format(L"Wood: {}\nProduction: {}", main_player.resources[ResourceWood], main_player.get_production(ResourceWood)));
-		renderer->hud_end();
+		hud->begin(mpos + vec2(0.f, 10.f));
+		hud->text(std::format(L"Wood: {}\nProduction: {}", main_player.resources[ResourceWood], main_player.get_production(ResourceWood)));
+		hud->end();
 	}
-	renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-	renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceClay]);
-	renderer->hud_text(std::format(L"{} +{}", main_player.resources[ResourceClay], main_player.get_production(ResourceClay)), 24);
-	renderer->hud_end_layout();
-	if (renderer->hud_item_hovered())
+	hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	hud->image(vec2(27.f, 18.f), img_resources[ResourceClay]);
+	hud->text(std::format(L"{} +{}", main_player.resources[ResourceClay], main_player.get_production(ResourceClay)), 24);
+	hud->end_layout();
+	if (hud->item_hovered())
 	{
-		renderer->hud_begin(mpos + vec2(0.f, 10.f));
-		renderer->hud_text(std::format(L"Clay: {}\nProduction: {}", main_player.resources[ResourceClay], main_player.get_production(ResourceClay)));
-		renderer->hud_end();
+		hud->begin(mpos + vec2(0.f, 10.f));
+		hud->text(std::format(L"Clay: {}\nProduction: {}", main_player.resources[ResourceClay], main_player.get_production(ResourceClay)));
+		hud->end();
 	}
-	renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-	renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceIron]);
-	renderer->hud_text(std::format(L"{} +{}", main_player.resources[ResourceIron], main_player.get_production(ResourceIron)), 24);
-	renderer->hud_end_layout();
-	if (renderer->hud_item_hovered())
+	hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	hud->image(vec2(27.f, 18.f), img_resources[ResourceIron]);
+	hud->text(std::format(L"{} +{}", main_player.resources[ResourceIron], main_player.get_production(ResourceIron)), 24);
+	hud->end_layout();
+	if (hud->item_hovered())
 	{
-		renderer->hud_begin(mpos + vec2(0.f, 10.f));
-		renderer->hud_text(std::format(L"Iron: {}\nProduction: {}", main_player.resources[ResourceIron], main_player.get_production(ResourceIron)));
-		renderer->hud_end();
+		hud->begin(mpos + vec2(0.f, 10.f));
+		hud->text(std::format(L"Iron: {}\nProduction: {}", main_player.resources[ResourceIron], main_player.get_production(ResourceIron)));
+		hud->end();
 	}
-	renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-	renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceCrop]);
-	renderer->hud_text(std::format(L"{} +{}", main_player.resources[ResourceCrop], main_player.get_production(ResourceCrop)), 24);
-	renderer->hud_end_layout();
-	if (renderer->hud_item_hovered())
+	hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	hud->image(vec2(27.f, 18.f), img_resources[ResourceCrop]);
+	hud->text(std::format(L"{} +{}", main_player.resources[ResourceCrop], main_player.get_production(ResourceCrop)), 24);
+	hud->end_layout();
+	if (hud->item_hovered())
 	{
-		renderer->hud_begin(mpos + vec2(0.f, 10.f));
-		renderer->hud_text(std::format(L"Crop: {}\nProduction: {}", main_player.resources[ResourceCrop], main_player.get_production(ResourceCrop)));
-		renderer->hud_end();
+		hud->begin(mpos + vec2(0.f, 10.f));
+		hud->text(std::format(L"Crop: {}\nProduction: {}", main_player.resources[ResourceCrop], main_player.get_production(ResourceCrop)));
+		hud->end();
 	}
-	renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-	renderer->hud_image(vec2(27.f, 18.f), img_resources[ResourceGold]);
-	renderer->hud_text(std::format(L"{}", main_player.resources[ResourceGold]), 24);
-	renderer->hud_end_layout();
-	if (renderer->hud_item_hovered())
+	hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	hud->image(vec2(27.f, 18.f), img_resources[ResourceGold]);
+	hud->text(std::format(L"{}", main_player.resources[ResourceGold]), 24);
+	hud->end_layout();
+	if (hud->item_hovered())
 	{
-		renderer->hud_begin(mpos + vec2(0.f, 10.f));
-		renderer->hud_text(std::format(L"Gold: {}", main_player.resources[ResourceGold]));
-		renderer->hud_end();
+		hud->begin(mpos + vec2(0.f, 10.f));
+		hud->text(std::format(L"Gold: {}", main_player.resources[ResourceGold]));
+		hud->end();
 	}
-	renderer->hud_begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-	renderer->hud_image(vec2(27.f, 18.f), img_population);
-	renderer->hud_text(std::format(L"{}/{}", main_player.consume_population, main_player.provide_population), 24);
-	renderer->hud_end_layout();
-	if (renderer->hud_item_hovered())
+	hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	hud->image(vec2(27.f, 18.f), img_population);
+	hud->text(std::format(L"{}/{}", main_player.consume_population, main_player.provide_population), 24);
+	hud->end_layout();
+	if (hud->item_hovered())
 	{
-		renderer->hud_begin(mpos + vec2(0.f, 10.f));
-		renderer->hud_text(std::format(L"Population\nProvide: {}\nConsume: {}", main_player.provide_population, main_player.consume_population));
-		renderer->hud_end();
+		hud->begin(mpos + vec2(0.f, 10.f));
+		hud->text(std::format(L"Population\nProvide: {}\nConsume: {}", main_player.provide_population, main_player.consume_population));
+		hud->end();
 	}
-	renderer->hud_end_layout();
-	renderer->hud_end();
+	hud->end_layout();
+	hud->end();
 
 	UniverseApplication::on_render();
 }
