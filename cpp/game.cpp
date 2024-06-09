@@ -276,10 +276,10 @@ std::vector<uint> find_path(uint start_id, uint end_id)
 	std::vector<std::pair<uint, uint>> candidates;
 	candidates.push_back({ start_id, 0 });
 	marks[start_id] = true;
-	auto idx = 0;
-	while (idx < candidates.size())
+	auto path_idx = 0;
+	while (path_idx < candidates.size())
 	{
-		auto [id, parent] = candidates[idx];
+		auto [id, parent] = candidates[path_idx];
 
 		if (id == end_id)
 		{
@@ -299,39 +299,64 @@ std::vector<uint> find_path(uint start_id, uint end_id)
 		auto& tile = tiles[id];
 		if (tile.tile_lt != -1 && !marks[tile.tile_lt])
 		{
-			candidates.push_back({ tile.tile_lt, idx });
+			candidates.push_back({ tile.tile_lt, path_idx });
 			marks[tile.tile_lt] = true;
 		}
 		if (tile.tile_t != -1 && !marks[tile.tile_t])
 		{
-			candidates.push_back({ tile.tile_t, idx });
+			candidates.push_back({ tile.tile_t, path_idx });
 			marks[tile.tile_t] = true;
 		}
 		if (tile.tile_rt != -1 && !marks[tile.tile_rt])
 		{
-			candidates.push_back({ tile.tile_rt, idx });
+			candidates.push_back({ tile.tile_rt, path_idx });
 			marks[tile.tile_rt] = true;
 		}
 		if (tile.tile_lb != -1 && !marks[tile.tile_lb])
 		{
-			candidates.push_back({ tile.tile_lb, idx });
+			candidates.push_back({ tile.tile_lb, path_idx });
 			marks[tile.tile_lb] = true;
 		}
 		if (tile.tile_b != -1 && !marks[tile.tile_b])
 		{
-			candidates.push_back({ tile.tile_b, idx });
+			candidates.push_back({ tile.tile_b, path_idx });
 			marks[tile.tile_b] = true;
 		}
 		if (tile.tile_rb != -1 && !marks[tile.tile_rb])
 		{
-			candidates.push_back({ tile.tile_rb, idx });
+			candidates.push_back({ tile.tile_rb, path_idx });
 			marks[tile.tile_rb] = true;
 		}
 
-		idx++;
+		path_idx++;
 	}
 	std::reverse(ret.begin(), ret.end());
 	return ret;
+}
+
+const uint MAX_TROOP_UNITS = 12;
+const uint IV_VAL = 31;
+const uint BP_VAL = 252;
+const uint BASE_EXP = 100;
+
+uint calc_hp_stat(uint base, uint lv)
+{
+	return uint((base * 2 + IV_VAL + BP_VAL / 4) * lv / 100.f) + lv + 10;
+}
+
+uint calc_stat(uint base, uint lv)
+{
+	return uint((base * 2 + IV_VAL + BP_VAL / 4) * lv / 100.f) + 5;
+}
+
+uint calc_exp(uint lv)
+{
+	return (lv * lv * lv * 4) / 5;
+}
+
+uint calc_gain_exp(uint lv)
+{
+	return (BASE_EXP * lv) / 7;
 }
 
 struct SkillData
@@ -370,6 +395,7 @@ struct Unit
 	uint lv;
 	uint exp;
 	int skills[4] = { -1, -1, -1, -1 };
+	uint gain_exp;
 };
 
 struct UnitInstance
@@ -387,6 +413,24 @@ struct UnitInstance
 	PokemonType type1;
 	PokemonType type2;
 	int skills[4] = { -1, -1, -1, -1 };
+
+	void init(Unit& unit)
+	{
+		auto& unit_data = unit_datas[unit.id];
+		original = &unit;
+		id = unit.id;
+		lv = unit.lv;
+		HP_MAX = calc_hp_stat(unit_data.HP, unit.lv);
+		HP = HP_MAX;
+		ATK = calc_stat(unit_data.ATK, unit.lv);
+		DEF = calc_stat(unit_data.DEF, unit.lv);
+		SA = calc_stat(unit_data.SA, unit.lv);
+		SD = calc_stat(unit_data.SD, unit.lv);
+		SP = calc_stat(unit_data.SP, unit.lv);
+		type1 = unit_data.type1;
+		type2 = unit_data.type2;
+		memcpy(skills, unit.skills, sizeof(skills));
+	}
 
 	int choose_attack_skill()
 	{
@@ -410,19 +454,6 @@ struct UnitInstance
 		return cands[linearRand(0, n - 1)];
 	}
 };
-
-const uint IV_VAL = 31;
-const uint BP_VAL = 252;
-
-uint calc_hp_stat(uint base, uint lv)
-{
-	return uint((base * 2 + IV_VAL + BP_VAL / 4) * lv / 100.f) + lv + 10;
-}
-
-uint calc_stat(uint base, uint lv)
-{
-	return uint((base * 2 + IV_VAL + BP_VAL / 4) * lv / 100.f) + 5;
-}
 
 uint calc_damage(UnitInstance& attacker, UnitInstance& defender, uint skill_id)
 {
@@ -615,7 +646,7 @@ struct City
 		Unit unit;
 		unit.id = unit_id;
 		unit.lv = lv;
-		unit.exp = 0;
+		unit.exp = calc_exp(lv);
 		if (skills)
 			memcpy(unit.skills, skills, sizeof(unit.skills));
 		units.push_back(unit);
@@ -633,9 +664,11 @@ struct City
 struct TroopInstance
 {
 	uint lord_id;
+	uint city_id;
+	uint id;
 	std::vector<UnitInstance> units;
 	std::vector<uint> path;
-	uint idx = 0;
+	uint path_idx = 0;
 };
 
 struct BuildingSlot
@@ -720,7 +753,7 @@ struct BattleTroop
 			auto& unit = troop->units[i];
 			auto& display = unit_displays[i];
 			display.unit_id = unit.id;
-			display.init_pos = vec3(136.f + i * 75.f, 240.f + 100.f * (1 - side), 0.f);
+			display.init_pos = vec2(136.f + i * 75.f, 240.f + 100.f * (1 - side));
 			display.HP = unit.HP;
 			display.pos = display.init_pos;
 			display.scl = vec3(1.f);
@@ -1029,8 +1062,8 @@ int search_lord_location()
 	}
 	if (candidates.empty())
 		return -1;
-	auto idx = linearRand(0, (int)candidates.size() - 1);
-	return candidates[idx];
+	auto path_idx = linearRand(0, (int)candidates.size() - 1);
+	return candidates[path_idx];
 }
 
 City* search_random_hostile_city(uint lord_id)
@@ -1056,6 +1089,7 @@ cvec4 hsv(float h, float s, float v, float a)
 }
 
 GameState state = GameInit;
+bool show_result = false;
 BattleTroop battle_troops[2];
 uint battle_action_side = 0;
 uint city_damge = 0;
@@ -1128,6 +1162,8 @@ void start_battle()
 		for (auto& city : lord.cities)
 		{
 			city.captures.clear();
+			for (auto& unit : city.units)
+				unit.gain_exp = 0;
 			for (auto i = 1; i < city.troops.size(); i++)
 			{
 				auto& troop = city.troops[i];
@@ -1135,25 +1171,14 @@ void start_battle()
 					continue;
 				TroopInstance troop_ins;
 				troop_ins.lord_id = lord.id;
+				troop_ins.city_id = city.id;
+				troop_ins.id = i;
 				troop_ins.path = troop.path;
-				for (auto idx : troop.units)
+				for (auto path_idx : troop.units)
 				{
-					auto& unit = city.units[idx];
-					auto& unit_data = unit_datas[unit.id];
+					auto& unit = city.units[path_idx];
 					UnitInstance unit_ins;
-					unit_ins.original = &unit;
-					unit_ins.id = unit.id;
-					unit_ins.lv = unit.lv;
-					unit_ins.HP_MAX = calc_hp_stat(unit_data.HP, unit.lv);
-					unit_ins.HP = unit_ins.HP_MAX;
-					unit_ins.ATK = calc_stat(unit_data.ATK, unit.lv);
-					unit_ins.DEF = calc_stat(unit_data.DEF, unit.lv);
-					unit_ins.SA = calc_stat(unit_data.SA, unit.lv);
-					unit_ins.SD = calc_stat(unit_data.SD, unit.lv);
-					unit_ins.SP = calc_stat(unit_data.SP, unit.lv);
-					unit_ins.type1 = unit_data.type1;
-					unit_ins.type2 = unit_data.type2;
-					memcpy(unit_ins.skills, unit.skills, sizeof(unit_ins.skills));
+					unit_ins.init(unit);
 					troop_ins.units.push_back(unit_ins);
 				}
 				lord.troops.push_back(troop_ins);
@@ -1179,6 +1204,7 @@ void step_troop_moving()
 	}
 	if (no_troops)
 	{
+		show_result = true;
 		new_day();
 		return;
 	}
@@ -1187,8 +1213,8 @@ void step_troop_moving()
 	{
 		for (auto& troop : lord.troops)
 		{
-			if (troop.idx < troop.path.size() - 1)
-				troop.idx++;
+			if (troop.path_idx < troop.path.size() - 1)
+				troop.path_idx++;
 		}
 	}
 
@@ -1204,7 +1230,7 @@ void step_troop_moving()
 				for (auto jj = 0; jj < _lord.troops.size(); jj++)
 				{
 					auto& _troop = _lord.troops[jj];
-					if (troop.path[troop.idx] == _troop.path[_troop.idx])
+					if (troop.path[troop.path_idx] == _troop.path[_troop.path_idx])
 					{
 						state = GameBattle;
 						{
@@ -1241,8 +1267,8 @@ void step_troop_moving()
 				for (auto jj = 0; jj < _lord.troops.size(); jj++)
 				{
 					auto& _troop = _lord.troops[jj];
-					if (troop.path[troop.idx] == _troop.path[_troop.idx < _troop.path.size() - 1 ? _troop.idx + 1 : _troop.idx] &&
-						_troop.path[_troop.idx] == troop.path[troop.idx < troop.path.size() - 1 ? troop.idx + 1 : troop.idx])
+					if (troop.path[troop.path_idx] == _troop.path[_troop.path_idx < _troop.path.size() - 1 ? _troop.path_idx + 1 : _troop.path_idx] &&
+						_troop.path[_troop.path_idx] == troop.path[troop.path_idx < troop.path.size() - 1 ? troop.path_idx + 1 : troop.path_idx])
 					{
 						state = GameBattle;
 						{
@@ -1271,7 +1297,7 @@ void step_troop_moving()
 	{
 		for (auto& troop : lord.troops)
 		{
-			if (troop.idx == troop.path.size() - 1)
+			if (troop.path_idx == troop.path.size() - 1)
 			{
 				auto tile_id = troop.path.back();
 				state = GameBattle;
@@ -1380,13 +1406,15 @@ void step_battle()
 		for (auto i = 0; i < 2; i++)
 		{
 			auto& battle_troop = battle_troops[i];
-			for (auto j = 0; j < battle_troop.troop->units.size(); j++)
+			auto& units = battle_troop.troop->units;
+			for (auto j = 0; j < units.size(); j++)
 			{
-				if (battle_troop.troop->units[j].HP <= 0)
+				auto& unit = units[j];
+				if (unit.HP <= 0)
 				{
 					if (j <= battle_troop.action_idx && battle_troop.action_idx > 0)
 						battle_troop.action_idx--;
-					battle_troop.troop->units.erase(battle_troop.troop->units.begin() + j);
+					units.erase(units.begin() + j);
 					j--;
 				}
 			}
@@ -1394,6 +1422,23 @@ void step_battle()
 
 		if (battle_troops[0].troop->units.empty() || battle_troops[1].troop->units.empty())
 		{
+			auto calc_exp_for_troop = [](TroopInstance& win_troop, TroopInstance& lose_troop) {
+				auto exp = 0;
+				auto& lose_troop_city = lords[lose_troop.lord_id].cities[lose_troop.city_id];
+				auto& original_lose_troop = lose_troop_city.troops[lose_troop.id];
+				for (auto idx : original_lose_troop.units)
+					exp += calc_gain_exp(lose_troop_city.units[idx].lv);
+				auto& win_troop_city = lords[win_troop.lord_id].cities[win_troop.city_id];
+				auto& original_win_troop = win_troop_city.troops[win_troop.id];
+				exp /= original_win_troop.units.size();
+				for (auto idx : original_win_troop.units)
+					win_troop_city.units[idx].gain_exp = exp;
+			};
+			if (battle_troops[0].troop->units.empty() && !battle_troops[1].troop->units.empty())
+				calc_exp_for_troop(*battle_troops[1].troop, *battle_troops[0].troop);
+			else if (!battle_troops[0].troop->units.empty() && battle_troops[1].troop->units.empty())
+				calc_exp_for_troop(*battle_troops[0].troop, *battle_troops[1].troop);
+
 			for (auto i = 0; i < 2; i++)
 			{
 				if (battle_troops[i].troop->units.empty())
@@ -1452,6 +1497,10 @@ void step_battle()
 				target_unit_display.label = L"";
 			});
 
+			game.tween->set_target(id, 3);
+			game.tween->set_channel(id, 3, time_attacked);
+			game.tween->int_val_to(id, target.HP, 0.4f);
+
 			if (target.HP <= 0)
 			{
 				game.tween->set_target(id, 1);
@@ -1473,7 +1522,7 @@ void step_battle()
 			action_troop.action_idx = 0;
 		battle_action_side = 1 - battle_action_side;
 	}
-	else
+	else if (battle_troops[0].city)
 	{
 		auto& action_troop = battle_troops[1];
 
@@ -2301,10 +2350,10 @@ void Game::on_render()
 					canvas->path.push_back(tiles[id].pos + vec2(tile_sz) * 0.5f);
 				}
 				end_point = canvas->path.back();
-				if (auto idx = move_idx + 1; idx < path.size())
+				if (auto path_idx = move_idx + 1; path_idx < path.size())
 				{
 					auto t = state == GameBattle ? 0.5f : fract(1.f - anim_remain * 1.9f);
-					end_point = mix(end_point, tiles[path[idx]].pos + vec2(tile_sz) * 0.5f, t);
+					end_point = mix(end_point, tiles[path[path_idx]].pos + vec2(tile_sz) * 0.5f, t);
 					canvas->path.push_back(end_point);
 				}
 			}
@@ -2334,7 +2383,7 @@ void Game::on_render()
 			}
 		}
 		for (auto& troop : lord.troops)
-			draw_troop_path(troop.path, troop.idx);
+			draw_troop_path(troop.path, troop.path_idx);
 	}
 
 	if (input->mpressed(Mouse_Left))
@@ -2435,7 +2484,7 @@ void Game::on_render()
 					}
 					hud->end_layout();
 					hud->stroke_item();
-				};
+					};
 
 				show_build_resource_field(ResourceWood);
 				show_build_resource_field(ResourceClay);
@@ -2628,7 +2677,7 @@ void Game::on_render()
 							break;
 						}
 					}
-							
+
 					if (input->mpressed(Mouse_Left))
 					{
 						if (hovering_slot != -1)
@@ -2773,7 +2822,6 @@ void Game::on_render()
 					auto show_troop = [&](uint tidx) {
 						auto& troop = city.troops[tidx];
 						const float size = 64.f;
-						const uint max_num = 7;
 						auto pos = hud->get_cursor();
 						if (dragging_unit != -1)
 						{
@@ -2799,23 +2847,23 @@ void Game::on_render()
 									}
 									hovered_unit = -1;
 								}
-								canvas->draw_rect_filled(pos, pos + vec2(size * max_num, size), cvec4(100, 100, 100, 255));
+								canvas->draw_rect_filled(pos, pos + vec2(size * MAX_TROOP_UNITS, size), cvec4(100, 100, 100, 255));
 							}
 						}
-						canvas->draw_rect(pos, pos + vec2(size * max_num, size), 1.f, cvec4(255));
+						canvas->draw_rect(pos, pos + vec2(size * MAX_TROOP_UNITS, size), 1.f, cvec4(255));
 						hud->begin_layout(HudHorizontal);
-						hud->begin_layout(HudHorizontal, vec2(size * max_num, size));
+						hud->begin_layout(HudHorizontal, vec2(size * MAX_TROOP_UNITS, size));
 						if (troop.units.empty())
 							hud->rect(vec2(size), cvec4(0));
 						for (auto i = 0; i < troop.units.size(); i++)
 						{
-							auto idx = troop.units[i];
-							auto& unit = city.units[idx];
+							auto path_idx = troop.units[i];
+							auto& unit = city.units[path_idx];
 							auto& unit_data = unit_datas[unit.id];
 							if (unit_data.icon)
 							{
 								if (hud->image_button(vec2(size), unit_data.icon))
-									dragging_unit = idx;
+									dragging_unit = path_idx;
 								if (hud->item_hovered())
 								{
 									hovered_unit = tidx * 100 + i;
@@ -2828,7 +2876,7 @@ void Game::on_render()
 											{
 												if (_troop.units[j] == dragging_unit)
 												{
-													_troop.units[j] = idx;
+													_troop.units[j] = path_idx;
 													troop.units[i] = dragging_unit;
 													ok = true;
 													break;
@@ -2853,10 +2901,10 @@ void Game::on_render()
 								draw_image(img_target, tiles[troop.target].pos + vec2(tile_sz) * 0.5f, vec2(32.f), vec2(0.5f, 0.5f), cvec4(255, 255, 255, 200));
 						}
 						hud->end_layout();
-					};
+						};
 
 					hud->text(L"In City:");
-						show_troop(0);
+					show_troop(0);
 					hud->text(L"Troops:");
 					for (auto i = 1; i < city.troops.size(); i++)
 						show_troop(i);
@@ -2874,7 +2922,7 @@ void Game::on_render()
 						auto& unit = city.units[troop.units[j]];
 						auto& unit_data = unit_datas[unit.id];
 						show_unit_detail(mpos, unit.id, unit.lv, calc_hp_stat(unit_data.HP, unit.lv), 0,
-							calc_stat(unit_data.ATK, unit.lv), calc_stat(unit_data.DEF, unit.lv), calc_stat(unit_data.SA, unit.lv), 
+							calc_stat(unit_data.ATK, unit.lv), calc_stat(unit_data.DEF, unit.lv), calc_stat(unit_data.SA, unit.lv),
 							calc_stat(unit_data.SD, unit.lv), calc_stat(unit_data.SP, unit.lv), unit_data.type1, unit_data.type2, unit.skills);
 					}
 
@@ -3001,9 +3049,12 @@ void Game::on_render()
 				rect.b = rect.a + sz;
 				if (rect.contains(mpos))
 					hovered_unit = i * 100 + j;
-				draw_rect(display.init_pos + vec2(-20.f, 5.f), vec2(40.f, 5.f), vec2(0.f), cvec4(150, 150, 150, 255));
-				draw_rect(display.init_pos + vec2(-20.f, 5.f), vec2(40.f * ((float)display.HP / (float)unit.HP_MAX), 5.f), vec2(0.f), cvec4(0, 255, 0, 255));
-				draw_text(std::format(L"{}/{}", display.HP, unit.HP_MAX), 20, display.init_pos + vec2(0.f, 8.f), vec2(0.5f, 1.f));
+				if (battle_troops[0].troop && battle_troops[1].troop)
+				{
+					draw_rect(display.init_pos + vec2(-20.f, 5.f), vec2(40.f, 5.f), vec2(0.f), cvec4(150, 150, 150, 255));
+					draw_rect(display.init_pos + vec2(-20.f, 5.f), vec2(40.f * ((float)display.HP / (float)unit.HP_MAX), 5.f), vec2(0.f), cvec4(0, 255, 0, 255));
+					draw_text(std::format(L"{}/{}", display.HP, unit.HP_MAX), 20, display.init_pos + vec2(0.f, 8.f), vec2(0.5f, 1.f));
+				}
 				if (!display.label.empty())
 					draw_text(display.label, 20, display.label_pos, vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
 			}
@@ -3022,6 +3073,138 @@ void Game::on_render()
 			auto& display = battle_troop.unit_displays[j];
 			auto& unit_data = unit_datas[display.unit_id];
 			show_unit_detail(mpos, display.unit_id, unit.lv, unit.HP, unit.HP_MAX, unit.ATK, unit.DEF, unit.SA, unit.SD, unit.SP, unit.type1, unit.type2, unit.skills);
+		}
+	}
+
+	{
+		enum Steps
+		{
+			StepShowExpGain,
+			StepEnd
+		};
+
+		struct UnitDisplay
+		{
+			uint id;
+			uint old_lv;
+			uint lv;
+			uint lv_exp;
+			uint lv_exp_max;
+		};
+
+		static Steps step = StepEnd;
+		static UnitDisplay unit_displays[MAX_TROOP_UNITS];
+		static uint path_idx;
+
+		auto move_step = [&]() {
+			switch (step)
+			{
+			case StepEnd:
+			{
+				step = StepShowExpGain;
+				auto& city = main_player.cities[path_idx];
+				for (auto i = 0; i < city.units.size(); i++)
+				{
+					auto& unit = city.units[i];
+					auto curr_lv_exp = calc_exp(unit.lv);
+					auto next_lv_exp = calc_exp(unit.lv + 1);
+					auto& display = unit_displays[i];
+					display.id = unit.id;
+					display.old_lv = unit.lv;
+					display.lv = unit.lv;
+					display.lv_exp = unit.exp - curr_lv_exp;
+					display.lv_exp_max = next_lv_exp - curr_lv_exp;
+
+					if (auto gain_exp = unit.gain_exp; gain_exp > 0)
+					{
+						auto lv = unit.lv;
+						auto start_exp = unit.exp;
+						auto end_exp = unit.exp + gain_exp;
+						unit.exp += gain_exp;
+
+						auto id = game.tween->begin_2d_targets();
+						game.tween->add_int_target(id, (int*)&display.lv_exp);
+
+						while (true)
+						{
+							game.tween->set_callback(id, [&, curr_lv_exp, next_lv_exp]() {
+								display.lv_exp_max = next_lv_exp - curr_lv_exp;
+							});
+							auto val = min(end_exp, next_lv_exp) - start_exp;
+							game.tween->int_val_to(id, val, (float)val / (next_lv_exp - curr_lv_exp));
+							if (end_exp < next_lv_exp)
+								break;
+							start_exp += val;
+							lv++;
+							curr_lv_exp = calc_exp(lv);
+							next_lv_exp = calc_exp(lv + 1);
+							game.tween->set_callback(id, [&, lv]() {
+								display.lv_exp = 0;
+								display.lv = lv;
+							});
+
+							unit.lv++;
+						}
+
+						game.tween->end(id);
+					}
+
+					unit.gain_exp = 0;
+				}
+			}
+				break;
+			}
+		};
+
+		if (show_result)
+		{
+			path_idx = 0;
+			move_step();
+			show_result = false;
+		}
+
+		switch (step)
+		{
+		case StepShowExpGain:
+		{
+			hud->begin(vec2(100.f, 250.f), vec2(700.f, 250.f), hsv(main_player.id * 60.f, 0.5f, 0.5f, 1.f));
+			auto& city = main_player.cities[path_idx];
+			hud->begin_layout(HudHorizontal);
+			for (auto i = 0; i < city.units.size(); i++)
+			{
+				hud->begin_layout(HudVertical);
+				auto& unit = city.units[i];
+				auto& unit_data = unit_datas[unit.id];
+				auto& display = unit_displays[i];
+				if (unit_data.icon)
+					hud->image(vec2(64.f), unit_data.icon);
+				hud->rect(vec2(40.f, 5.f), cvec4(150, 150, 150, 255));
+				hud->set_cursor(hud->item_rect().a);
+				hud->rect(vec2(40.f * ((float)display.lv_exp / (float)display.lv_exp_max), 5.f), cvec4(0, 0, 255, 255));
+				hud->set_cursor(hud->item_rect().a);
+				hud->text(std::format(L"{}/{}", display.lv_exp, display.lv_exp_max), 20);
+				if (display.lv != display.old_lv)
+				{
+					auto old_hp = calc_hp_stat(unit_data.HP, display.old_lv); auto new_hp = calc_hp_stat(unit_data.HP, display.lv);
+					auto old_atk = calc_stat(unit_data.ATK, display.old_lv); auto new_atk = calc_stat(unit_data.ATK, display.lv);
+					auto old_def = calc_stat(unit_data.DEF, display.old_lv); auto new_def = calc_stat(unit_data.DEF, display.lv);
+					auto old_sa = calc_stat(unit_data.SA, display.old_lv); auto new_sa = calc_stat(unit_data.SA, display.lv);
+					auto old_sd = calc_stat(unit_data.SD, display.old_lv); auto new_sd = calc_stat(unit_data.SD, display.lv);
+					auto old_sp = calc_stat(unit_data.SP, display.old_lv); auto new_sp = calc_stat(unit_data.SP, display.lv);
+					hud->text(std::format(L"{} -> {}", display.old_lv, display.lv), 20);
+					hud->text(std::format(L"HP +{} -> {}", new_hp - old_hp, new_hp), 20);
+					hud->text(std::format(L"ATK +{} -> {}", new_atk - old_atk, new_atk), 20);
+					hud->text(std::format(L"DEF +{} -> {}", new_def - old_def, new_def), 20);
+					hud->text(std::format(L"SA +{} -> {}", new_sa - old_sa, new_sa), 20);
+					hud->text(std::format(L"SD +{} -> {}", new_sd - old_sd, new_sd), 20);
+					hud->text(std::format(L"SP +{} -> {}", new_sp - old_sp, new_sp), 20);
+				}
+				hud->end_layout();
+			}
+			hud->end_layout();
+			hud->end();
+		}
+			break;
 		}
 	}
 
