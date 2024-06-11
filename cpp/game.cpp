@@ -29,6 +29,7 @@ enum ResourceType
 	ResourceIron,
 	ResourceCrop,
 	ResourceGold,
+	ResourceConstructionPower,
 
 	ResourceTypeCount
 };
@@ -159,22 +160,58 @@ cvec4 get_pokemon_type_color(PokemonType type)
 
 float pokemon_type_effectiveness[PokemonTypeCount][PokemonTypeCount]; // attacker, defender
 
+enum Stat
+{
+	StatHP,
+	StatATK,
+	StatDEF,
+	StatSA,
+	StatSD,
+	StatSP,
+
+	StatCount
+};
+
+const wchar_t* get_stat_name(Stat stat)
+{
+	switch (stat)
+	{
+	case StatHP: return L"HP";
+	case StatATK: return L"ATK";
+	case StatDEF: return L"DEF";
+	case StatSA: return L"SA";
+	case StatSD: return L"SD";
+	case StatSP: return L"SP";
+	}
+	return L"";
+}
+
+Stat get_stat_from_name(std::wstring_view name)
+{
+	for (auto i = 0; i < StatCount; i++)
+	{
+		if (name == get_stat_name((Stat)i))
+			return (Stat)i;
+	}
+	return StatCount;
+}
+
 enum SkillCategory
 {
-	SkillPhysical,
-	SkillSpecial,
-	SkillStatus,
+	SkillCatePhysical,
+	SkillCateSpecial,
+	SkillCateStatus,
 
 	SkillCategoryCount
 };
 
-const wchar_t* get_skill_category_name(SkillCategory type)
+const wchar_t* get_skill_category_name(SkillCategory cate)
 {
-	switch (type)
+	switch (cate)
 	{
-	case SkillPhysical: return L"Physical";
-	case SkillSpecial: return L"Special";
-	case SkillStatus: return L"Status";
+	case SkillCatePhysical: return L"Physical";
+	case SkillCateSpecial: return L"Special";
+	case SkillCateStatus: return L"Status";
 	}
 	return L"";
 }
@@ -186,7 +223,262 @@ SkillCategory get_skill_category_from_name(std::wstring_view name)
 		if (name == get_skill_category_name((SkillCategory)i))
 			return (SkillCategory)i;
 	}
-	return SkillPhysical;
+	return SkillCategoryCount;
+}
+
+enum EffectType
+{
+	EffectUserStat,
+	EffectOpponentStat,
+	EffectStatus,
+
+	EffectTypeCount
+};
+
+const wchar_t* get_effect_type_name(EffectType effect)
+{
+	switch (effect)
+	{
+	case EffectUserStat: return L"UserStat";
+	case EffectOpponentStat: return L"OpponentStat";
+	case EffectStatus: return L"Status";
+	}
+	return L"";
+}
+
+EffectType get_effect_type_from_name(std::wstring_view name)
+{
+	for (auto i = 0; i < EffectTypeCount; i++)
+	{
+		if (name == get_effect_type_name((EffectType)i))
+			return (EffectType)i;
+	}
+	return EffectTypeCount;
+}
+
+enum Status
+{
+	StatusBurn,
+	StatusFreeze,
+	StatusParalysis,
+	StatusPoison,
+	StatusSleep,
+
+	StatusCount
+};
+
+const wchar_t* get_status_name(Status status)
+{
+	switch (status)
+	{
+	case StatusBurn: return L"Burn";
+	case StatusFreeze: return L"Freeze";
+	case StatusParalysis: return L"Paralysis";
+	case StatusPoison: return L"Poison";
+	case StatusSleep: return L"Sleep";
+	}
+	return L"";
+}
+
+Status get_status_from_name(std::wstring_view name)
+{
+	for (auto i = 0; i < StatusCount; i++)
+	{
+		if (name == get_status_name((Status)i))
+			return (Status)i;
+	}
+	return StatusCount;
+}
+
+struct SkillEffect
+{
+	EffectType type;
+	union
+	{
+		struct
+		{
+			Stat id;
+			int state;
+			float prob;
+		}stat;
+		struct
+		{
+			Status id;
+			float prob;
+		}status;
+	}data;
+};
+
+const uint MAX_TROOP_UNITS = 12;
+const uint IV_VAL = 31;
+const uint BP_VAL = 252;
+const uint BASE_EXP = 100;
+
+uint calc_hp_stat(uint base, uint lv)
+{
+	return uint((base * 2 + IV_VAL + BP_VAL / 4) * lv / 100.f) + lv + 10;
+}
+
+uint calc_stat(uint base, uint lv)
+{
+	return uint((base * 2 + IV_VAL + BP_VAL / 4) * lv / 100.f) + 5;
+}
+
+uint calc_exp(uint lv)
+{
+	return (lv * lv * lv * 4) / 5;
+}
+
+uint calc_gain_exp(uint lv)
+{
+	return (BASE_EXP * lv) / 7;
+}
+
+enum TargetType
+{
+	TargetEnemy,
+	TargetSelf
+};
+
+struct SkillData
+{
+	std::wstring name;
+	PokemonType type;
+	SkillCategory category;
+	uint power;
+	uint acc;
+	uint pp;
+	std::wstring effect_text;
+	std::vector<SkillEffect> effects;
+	TargetType target_type = TargetEnemy;
+};
+std::vector<SkillData> skill_datas;
+
+struct UnitData
+{
+	std::wstring name;
+	uint cost_gold;
+	uint cost_population;
+	uint stats[StatCount];
+	PokemonType type1 = PokemonTypeCount;
+	PokemonType type2 = PokemonTypeCount;
+	std::vector<ivec2> skillset;
+	graphics::ImagePtr icon = nullptr;
+};
+std::vector<UnitData> unit_datas;
+
+struct Unit
+{
+	uint id;
+	uint lv;
+	uint exp;
+	int skills[4] = { -1, -1, -1, -1 };
+	uint gain_exp;
+};
+
+struct UnitInstance
+{
+	Unit* original;
+	uint id;
+	uint lv;
+	uint HP_MAX;
+	uint stats[StatCount];
+	PokemonType type1;
+	PokemonType type2;
+	int skills[4] = { -1, -1, -1, -1 };
+	int stat_stage[StatCount] = { 0, 0, 0, 0, 0, 0 };
+
+	void init(Unit& unit)
+	{
+		auto& unit_data = unit_datas[unit.id];
+		original = &unit;
+		id = unit.id;
+		lv = unit.lv;
+		HP_MAX = calc_hp_stat(unit_data.stats[StatHP], unit.lv);
+		stats[StatHP] = HP_MAX;
+		for (auto i = (int)StatATK; i < StatCount; i++)
+			stats[i] = calc_stat(unit_data.stats[i], unit.lv);
+		type1 = unit_data.type1;
+		type2 = unit_data.type2;
+		memcpy(skills, unit.skills, sizeof(skills));
+	}
+
+	int choose_skill()
+	{
+		auto n = 0;
+		uint cands[4];
+		for (auto i = 0; i < 4; i++)
+		{
+			if (auto skill_id = skills[i]; skill_id != -1)
+			{
+				cands[n] = skill_id;
+				n++;
+			}
+		}
+		if (n == 0)
+			return -1;
+		return cands[linearRand(0, n - 1)];
+	}
+};
+
+float get_stage_modifier(int stage)
+{
+	switch (stage)
+	{
+	case -6: return 25.f / 100.f;
+	case -5: return 28.f / 100.f;
+	case -4: return 33.f / 100.f;
+	case -3: return 40.f / 100.f;
+	case -2: return 50.f / 100.f;
+	case -1: return 66.f / 100.f;
+	case +1: return 150.f / 100.f;
+	case +2: return 200.f / 100.f;
+	case +3: return 250.f / 100.f;
+	case +4: return 300.f / 100.f;
+	case +5: return 350.f / 100.f;
+	case +6: return 400.f / 100.f;
+	}
+	return 1.f;
+}
+
+struct StatChange
+{
+	bool changed = false;
+	int stage[StatCount] = { 0, 0, 0, 0, 0, 0 };
+};
+
+bool cast_skill(UnitInstance& caster, UnitInstance& target, uint skill_id, uint& damage, StatChange& caster_stat_changed, StatChange& target_stat_changed)
+{
+	auto& skill_data = skill_datas[skill_id];
+	auto effectiveness1 = target.type1 != PokemonTypeCount ? pokemon_type_effectiveness[skill_data.type][target.type1] : 1.f;
+	auto effectiveness2 = target.type2 != PokemonTypeCount ? pokemon_type_effectiveness[skill_data.type][target.type2] : 1.f;
+	if (effectiveness1 * effectiveness2 == 0.f)
+		return false;
+
+	if (skill_data.power > 0)
+	{
+		auto effectiveness = effectiveness1 * effectiveness2;
+		if (caster.type1 == skill_data.type || caster.type2 == skill_data.type)
+			effectiveness *= 1.5f;
+		auto A = skill_data.category == SkillCatePhysical ? caster.stats[StatATK] : caster.stats[StatSA];
+		auto D = skill_data.category == SkillCatePhysical ? target.stats[StatDEF] : target.stats[StatSD];
+		damage = ((2.f * caster.lv + 10.f) / 250.f * ((float)A / (float)D) * skill_data.power + 2.f) * effectiveness;
+	}
+
+	for (auto& effect : skill_data.effects)
+	{
+		switch (effect.type)
+		{
+		case EffectUserStat:
+			caster_stat_changed.changed = true;
+			caster_stat_changed.stage[effect.data.stat.id] += effect.data.stat.state;
+			break;
+		case EffectOpponentStat:
+			target_stat_changed.changed = true;
+			target_stat_changed.stage[effect.data.stat.id] += effect.data.stat.state;
+			break;
+		}
+	}
 }
 
 cCameraPtr camera;
@@ -332,148 +624,6 @@ std::vector<uint> find_path(uint start_id, uint end_id)
 	}
 	std::reverse(ret.begin(), ret.end());
 	return ret;
-}
-
-const uint MAX_TROOP_UNITS = 12;
-const uint IV_VAL = 31;
-const uint BP_VAL = 252;
-const uint BASE_EXP = 100;
-
-uint calc_hp_stat(uint base, uint lv)
-{
-	return uint((base * 2 + IV_VAL + BP_VAL / 4) * lv / 100.f) + lv + 10;
-}
-
-uint calc_stat(uint base, uint lv)
-{
-	return uint((base * 2 + IV_VAL + BP_VAL / 4) * lv / 100.f) + 5;
-}
-
-uint calc_exp(uint lv)
-{
-	return (lv * lv * lv * 4) / 5;
-}
-
-uint calc_gain_exp(uint lv)
-{
-	return (BASE_EXP * lv) / 7;
-}
-
-struct SkillData
-{
-	std::wstring name;
-	PokemonType type;
-	SkillCategory category;
-	uint power;
-	uint acc;
-	uint pp;
-	std::wstring effect;
-};
-std::vector<SkillData> skill_datas;
-
-struct UnitData
-{
-	std::wstring name;
-	uint cost_gold;
-	uint cost_population;
-	uint HP;
-	uint ATK;
-	uint DEF;
-	uint SA;
-	uint SD;
-	uint SP;
-	PokemonType type1 = PokemonTypeCount;
-	PokemonType type2 = PokemonTypeCount;
-	std::vector<ivec2> skillset;
-	graphics::ImagePtr icon = nullptr;
-};
-std::vector<UnitData> unit_datas;
-
-struct Unit
-{
-	uint id;
-	uint lv;
-	uint exp;
-	int skills[4] = { -1, -1, -1, -1 };
-	uint gain_exp;
-};
-
-struct UnitInstance
-{
-	Unit* original;
-	uint id;
-	uint lv;
-	int HP_MAX;
-	int HP;
-	int ATK;
-	int DEF;
-	int SA;
-	int SD;
-	int SP;
-	PokemonType type1;
-	PokemonType type2;
-	int skills[4] = { -1, -1, -1, -1 };
-
-	void init(Unit& unit)
-	{
-		auto& unit_data = unit_datas[unit.id];
-		original = &unit;
-		id = unit.id;
-		lv = unit.lv;
-		HP_MAX = calc_hp_stat(unit_data.HP, unit.lv);
-		HP = HP_MAX;
-		ATK = calc_stat(unit_data.ATK, unit.lv);
-		DEF = calc_stat(unit_data.DEF, unit.lv);
-		SA = calc_stat(unit_data.SA, unit.lv);
-		SD = calc_stat(unit_data.SD, unit.lv);
-		SP = calc_stat(unit_data.SP, unit.lv);
-		type1 = unit_data.type1;
-		type2 = unit_data.type2;
-		memcpy(skills, unit.skills, sizeof(skills));
-	}
-
-	int choose_attack_skill()
-	{
-		auto n = 0;
-		uint cands[4];
-		for (auto i = 0; i < 4; i++)
-		{
-			auto skill_id = skills[i];
-			if (skill_id != -1)
-			{
-				auto& skill_data = skill_datas[skill_id];
-				if (skill_data.category != SkillStatus)
-				{
-					cands[n] = skill_id;
-					n++;
-				}
-			}
-		}
-		if (n == 0)
-			return -1;
-		return cands[linearRand(0, n - 1)];
-	}
-};
-
-uint calc_damage(UnitInstance& attacker, UnitInstance& defender, uint skill_id)
-{
-	auto& skill_data = skill_datas[skill_id];
-	if (skill_data.category == SkillStatus)
-		return 0;
-	auto effectiveness1 = 1.f;
-	if (defender.type1 != PokemonTypeCount)
-		effectiveness1 = pokemon_type_effectiveness[skill_data.type][defender.type1];
-	auto effectiveness2 = 1.f;
-	if (defender.type2 != PokemonTypeCount)
-		effectiveness2 = pokemon_type_effectiveness[skill_data.type][defender.type2];
-	if (effectiveness1 * effectiveness2 == 0.f)
-		return 0;
-	auto effectiveness = effectiveness1 * effectiveness2;
-	if (attacker.type1 == skill_data.type || attacker.type2 == skill_data.type)
-		effectiveness *= 1.5f;
-	auto A = skill_data.category == SkillPhysical ? attacker.ATK : attacker.SA;
-	auto D = skill_data.category == SkillPhysical ? defender.DEF : defender.SD;
-	return ((2.f * attacker.lv + 10.f) / 250.f * ((float)A / (float)D) * skill_data.power + 2.f) * effectiveness;
 }
 
 struct BuildingBaseData
@@ -754,7 +904,7 @@ struct BattleTroop
 			auto& display = unit_displays[i];
 			display.unit_id = unit.id;
 			display.init_pos = vec2(136.f + i * 75.f, 240.f + 100.f * (1 - side));
-			display.HP = unit.HP;
+			display.HP = unit.stats[StatHP];
 			display.pos = display.init_pos;
 			display.scl = vec3(1.f);
 			display.alpha = 1.f;
@@ -1167,7 +1317,7 @@ void start_battle()
 			for (auto i = 1; i < city.troops.size(); i++)
 			{
 				auto& troop = city.troops[i];
-				if (troop.path.empty() || troop.units.empty())
+				if (troop.target != city.tile_id && troop.path.empty() || troop.units.empty())
 					continue;
 				TroopInstance troop_ins;
 				troop_ins.lord_id = lord.id;
@@ -1410,7 +1560,7 @@ void step_battle()
 			for (auto j = 0; j < units.size(); j++)
 			{
 				auto& unit = units[j];
-				if (unit.HP <= 0)
+				if (unit.stats[StatHP] <= 0)
 				{
 					if (j <= battle_troop.action_idx && battle_troop.action_idx > 0)
 						battle_troop.action_idx--;
@@ -1470,9 +1620,12 @@ void step_battle()
 		auto& cast_unit_display = action_troop.unit_displays[action_troop.action_idx];
 		auto& target_unit_display = other_troop.unit_displays[target_idx];
 
-		auto cast_skill = caster.choose_attack_skill();
-		auto target_damage = cast_skill == -1 ? 0 : calc_damage(caster, target, cast_skill);
-		target.HP = max(0, target.HP - (int)target_damage);
+		auto skill_id = caster.choose_skill();
+		uint damage = 0;
+		StatChange caster_stat_change;
+		StatChange target_stat_change;
+		if (skill_id != -1)
+			cast_skill(caster, target, skill_id, damage, caster_stat_change, target_stat_change);
 
 		{
 			auto id = game.tween->begin_2d_targets();
@@ -1480,28 +1633,69 @@ void step_battle()
 			game.tween->add_2d_target(id, nullptr, nullptr, nullptr, &target_unit_display.alpha);
 			game.tween->add_2d_target(id, &target_unit_display.label_pos, nullptr, nullptr, nullptr);
 			game.tween->add_int_target(id, (int*)&target_unit_display.HP);
-			auto target_pos = mix(cast_unit_display.pos, target_unit_display.pos, 0.9f);
 			game.tween->scale_to(id, vec2(1.5f), 0.3f);
+			auto target_pos = mix(cast_unit_display.pos, target_unit_display.pos, 0.8f);
 			game.tween->move_to(id, target_pos, 0.3f);
 			game.tween->set_ease(id, EaseInCubic);
-			auto time_attacked = game.tween->get_time(id);
+			auto time_cast = game.tween->get_time(id);
 
 			game.tween->set_target(id, 2);
-			game.tween->set_channel(id, 2, time_attacked);
-			game.tween->set_callback(id, [&, target_damage]() {
-				target_unit_display.label = wstr(target_damage);
+			game.tween->set_channel(id, 2, time_cast);
+			std::wstring target_label = L"";
+			if (damage > 0)
+				target_label = wstr(damage);
+			if (target_stat_change.changed)
+			{
+				for (auto i = (int)StatATK; i < StatCount; i++)
+				{
+					if (auto v = target_stat_change.stage[i]; v != 0)
+					{
+						if (!target_label.empty())
+							target_label += L"\n";
+						auto& stage = target.stat_stage[i];
+						auto new_val = clamp(stage + v, -6, +6);
+						if (stage != new_val)
+						{
+							switch (new_val - stage)
+							{
+							case -1:
+								target_label += std::format(L"{} fell", get_stat_name((Stat)i));
+								break;
+							case -2:
+								target_label += std::format(L"{} harshly fell", get_stat_name((Stat)i));
+								break;
+							case +1:
+								target_label += std::format(L"{} rose", get_stat_name((Stat)i));
+								break;
+							case +2:
+								target_label += std::format(L"{} rose sharply", get_stat_name((Stat)i));
+								break;
+							}
+						}
+						else
+						{
+							if (v < 0)
+								target_label += std::format(L"{} won't go any lower", get_stat_name((Stat)i));
+							if (v > 0)
+								target_label += std::format(L"{} won't go any higher", get_stat_name((Stat)i));
+						}
+					}
+				}
+			}
+			game.tween->set_callback(id, [&, target_label]() {
+				target_unit_display.label = target_label;
 				target_unit_display.label_pos = target_unit_display.init_pos + vec2(0.f, -45.f);
 			});
 			game.tween->move_to(id, target_unit_display.init_pos + vec2(0.f, -60.f), 0.4f);
-			game.tween->set_callback(id, [&, target_damage]() {
+			game.tween->set_callback(id, [&]() {
 				target_unit_display.label = L"";
 			});
 
 			game.tween->set_target(id, 3);
-			game.tween->set_channel(id, 3, time_attacked);
-			game.tween->int_val_to(id, target.HP, 0.4f);
+			game.tween->set_channel(id, 3, time_cast);
+			game.tween->int_val_to(id, max(0, (int)target.stats[StatHP] - (int)damage), 0.4f);
 
-			if (target.HP <= 0)
+			if (target.stats[StatHP] <= 0)
 			{
 				game.tween->set_target(id, 1);
 				game.tween->alpha_to(id, 0.f, 0.4f);
@@ -1509,12 +1703,48 @@ void step_battle()
 			}
 
 			game.tween->set_target(id, 0U);
-			game.tween->set_channel(id, 0, time_attacked);
+			game.tween->set_channel(id, 0, time_cast);
 			game.tween->move_to(id, cast_unit_display.pos, 0.3f);
-			game.tween->set_channel(id, 1, time_attacked);
+			game.tween->set_channel(id, 1, time_cast);
 			game.tween->scale_to(id, vec2(1.f), 0.3f);
-			game.tween->end(id);
-			anim_remain = 1.5f;
+			anim_remain = game.tween->end(id) + 0.1f;
+		}
+
+		if (damage > 0)
+			target.stats[StatHP] = max(0, (int)target.stats[StatHP] - (int)damage);
+		if (caster_stat_change.changed)
+		{
+			auto& unit_data = unit_datas[caster.id];
+			for (auto i = (int)StatATK; i < StatCount; i++)
+			{
+				if (auto v = caster_stat_change.stage[i]; v != 0)
+				{
+					auto& stage = caster.stat_stage[i];
+					auto new_val = clamp(stage + v, -6, +6);
+					if (stage != new_val)
+					{
+						stage = new_val;
+						caster.stats[i] = calc_stat(unit_data.stats[i], caster.lv) * get_stage_modifier(stage);
+					}
+				}
+			}
+		}
+		if (target_stat_change.changed)
+		{
+			auto& unit_data = unit_datas[target.id];
+			for (auto i = (int)StatATK; i < StatCount; i++)
+			{
+				if (auto v = target_stat_change.stage[i]; v != 0)
+				{
+					auto& stage = target.stat_stage[i];
+					auto new_val = clamp(stage + v, -6, +6);
+					if (stage != new_val)
+					{
+						stage = new_val;
+						target.stats[i] = calc_stat(unit_data.stats[i], target.lv) * get_stage_modifier(stage);
+					}
+				}
+			}
 		}
 
 		action_troop.action_idx++;
@@ -2061,7 +2291,61 @@ void Game::init()
 			data.power = sht->get_as<uint>(row, "power"_h);
 			data.acc = sht->get_as<uint>(row, "acc"_h);
 			data.pp = sht->get_as<uint>(row, "pp"_h);
-			data.effect = sht->get_as_wstr(row, "effect"_h);
+			data.effect_text = sht->get_as_wstr(row, "effect_text"_h);
+			auto effect = sht->get_as_wstr(row, "effect"_h);
+			for (auto t : SUW::split(effect, ';'))
+			{
+				auto sp = SUW::split(t, ',');
+				if (sp.size() > 0)
+				{
+					auto type = get_effect_type_from_name(sp[0]);
+					if (type != EffectTypeCount)
+					{
+						switch (type)
+						{
+						case EffectUserStat:
+							if (sp.size() == 4)
+							{
+								SkillEffect effect;
+								effect.type = type;
+								effect.data.stat.id = get_stat_from_name(sp[1]);
+								effect.data.stat.state = s2t<int>(std::wstring(sp[2]));
+								effect.data.stat.prob = s2t<float>(std::wstring(sp[3]));
+								data.effects.push_back(effect);
+							}
+							break;
+						case EffectOpponentStat:
+							if (sp.size() == 4)
+							{
+								SkillEffect effect;
+								effect.type = type;
+								effect.data.stat.id = get_stat_from_name(sp[1]);
+								effect.data.stat.state = s2t<int>(std::wstring(sp[2]));
+								effect.data.stat.prob = s2t<float>(std::wstring(sp[3]));
+								data.effects.push_back(effect);
+							}
+							break;
+						case EffectStatus:
+
+							break;
+						}
+					}
+				}
+			}
+			if (data.category == SkillCateStatus)
+			{
+				auto no_target = true;
+				for (auto& effect : data.effects)
+				{
+					if (effect.type == EffectOpponentStat)
+					{
+						no_target = false;
+						break;
+					}
+				}
+				if (no_target)
+					data.target_type = TargetSelf;
+			}
 			skill_datas.push_back(data);
 		}
 	}
@@ -2093,12 +2377,12 @@ void Game::init()
 			data.name = sht->get_as_wstr(row, "name"_h);
 			data.cost_gold = sht->get_as<uint>(row, "cost_gold"_h);
 			data.cost_population = sht->get_as<uint>(row, "cost_population"_h);
-			data.HP = sht->get_as<uint>(row, "HP"_h);
-			data.ATK = sht->get_as<uint>(row, "ATK"_h);
-			data.DEF = sht->get_as<uint>(row, "DEF"_h);
-			data.SA = sht->get_as<uint>(row, "SA"_h);
-			data.SD = sht->get_as<uint>(row, "SD"_h);
-			data.SP = sht->get_as<uint>(row, "SP"_h);
+			data.stats[StatHP] = sht->get_as<uint>(row, "HP"_h);
+			data.stats[StatATK] = sht->get_as<uint>(row, "ATK"_h);
+			data.stats[StatDEF] = sht->get_as<uint>(row, "DEF"_h);
+			data.stats[StatSA] = sht->get_as<uint>(row, "SA"_h);
+			data.stats[StatSD] = sht->get_as<uint>(row, "SD"_h);
+			data.stats[StatSP] = sht->get_as<uint>(row, "SP"_h);
 			data.type1 = get_pokemon_type_from_name(sht->get_as_wstr(row, "type1"_h));
 			data.type2 = get_pokemon_type_from_name(sht->get_as_wstr(row, "type2"_h));
 			{
@@ -2427,7 +2711,7 @@ void Game::on_render()
 				hud->text(get_pokemon_type_name(skill_data.type), 20, get_pokemon_type_color(skill_data.type));
 				if (skill_data.power > 0)
 					hud->text(std::format(L"Power {}", skill_data.power));
-				hud->text(skill_data.effect);
+				hud->text(skill_data.effect_text, 18);
 				hud->end_layout();
 				hud->stroke_item();
 			}
@@ -2445,54 +2729,54 @@ void Game::on_render()
 		switch (tile.type)
 		{
 		case TileField:
-			if (main_player.has_territory(selected_tile))
-			{
-				hud->begin_layout(HudHorizontal);
+			//if (main_player.has_territory(selected_tile))
+			//{
+			//	hud->begin_layout(HudHorizontal);
 
-				auto show_build_resource_field = [&](ResourceType type) {
-					hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-					hud->text(get_resource_field_name(type));
-					if (!resource_field_datas[type].empty())
-					{
-						auto& first_level = resource_field_datas[type].front();
+			//	auto show_build_resource_field = [&](ResourceType type) {
+			//		hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+			//		hud->text(get_resource_field_name(type));
+			//		if (!resource_field_datas[type].empty())
+			//		{
+			//			auto& first_level = resource_field_datas[type].front();
 
-						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-						hud->text(L"Production: ", 22);
-						hud->image(vec2(20.f, 13.f), img_resources[type]);
-						hud->text(std::format(L"{}", first_level.production), 22);
-						hud->end_layout();
+			//			hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+			//			hud->text(L"Production: ", 22);
+			//			hud->image(vec2(20.f, 13.f), img_resources[type]);
+			//			hud->text(std::format(L"{}", first_level.production), 22);
+			//			hud->end_layout();
 
-						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-						hud->image(vec2(18.f, 12.f), img_resources[ResourceWood]);
-						hud->text(std::format(L"{}", first_level.cost_wood), 16);
-						hud->image(vec2(18.f, 12.f), img_resources[ResourceClay]);
-						hud->text(std::format(L"{}", first_level.cost_clay), 16);
-						hud->image(vec2(18.f, 12.f), img_resources[ResourceIron]);
-						hud->text(std::format(L"{}", first_level.cost_iron), 16);
-						hud->image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
-						hud->text(std::format(L"{}", first_level.cost_crop), 16);
-						hud->end_layout();
-						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-						hud->image(vec2(18.f, 12.f), img_resources[ResourceGold]);
-						hud->text(std::format(L"{}", first_level.cost_gold), 16);
-						hud->image(vec2(18.f, 12.f), img_population);
-						hud->text(std::format(L"{}", first_level.cost_population), 16);
-						hud->end_layout();
+			//			hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+			//			hud->image(vec2(18.f, 12.f), img_resources[ResourceWood]);
+			//			hud->text(std::format(L"{}", first_level.cost_wood), 16);
+			//			hud->image(vec2(18.f, 12.f), img_resources[ResourceClay]);
+			//			hud->text(std::format(L"{}", first_level.cost_clay), 16);
+			//			hud->image(vec2(18.f, 12.f), img_resources[ResourceIron]);
+			//			hud->text(std::format(L"{}", first_level.cost_iron), 16);
+			//			hud->image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
+			//			hud->text(std::format(L"{}", first_level.cost_crop), 16);
+			//			hud->end_layout();
+			//			hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+			//			hud->image(vec2(18.f, 12.f), img_resources[ResourceGold]);
+			//			hud->text(std::format(L"{}", first_level.cost_gold), 16);
+			//			hud->image(vec2(18.f, 12.f), img_population);
+			//			hud->text(std::format(L"{}", first_level.cost_population), 16);
+			//			hud->end_layout();
 
-						if (hud->button(L"Build", 18))
-							main_player.build_resource_field(selected_tile, type);
-					}
-					hud->end_layout();
-					hud->stroke_item();
-					};
+			//			if (hud->button(L"Build", 18))
+			//				main_player.build_resource_field(selected_tile, type);
+			//		}
+			//		hud->end_layout();
+			//		hud->stroke_item();
+			//	};
 
-				show_build_resource_field(ResourceWood);
-				show_build_resource_field(ResourceClay);
-				show_build_resource_field(ResourceIron);
-				show_build_resource_field(ResourceCrop);
+			//	show_build_resource_field(ResourceWood);
+			//	show_build_resource_field(ResourceClay);
+			//	show_build_resource_field(ResourceIron);
+			//	show_build_resource_field(ResourceCrop);
 
-				hud->end_layout();
-			}
+			//	hud->end_layout();
+			//}
 			break;
 		case TileCity:
 		{
@@ -2806,9 +3090,9 @@ void Game::on_render()
 					{
 						auto& capture = city.captures[hovered_unit];
 						auto& unit_data = unit_datas[capture.unit_id];
-						show_unit_detail(mpos, capture.unit_id, capture.lv, calc_hp_stat(unit_data.HP, capture.lv), 0,
-							calc_stat(unit_data.ATK, capture.lv), calc_stat(unit_data.DEF, capture.lv), calc_stat(unit_data.SA, capture.lv),
-							calc_stat(unit_data.SD, capture.lv), calc_stat(unit_data.SP, capture.lv), unit_data.type1, unit_data.type2, capture.skills);
+						show_unit_detail(mpos, capture.unit_id, capture.lv, calc_hp_stat(unit_data.stats[StatHP], capture.lv), 0,
+							calc_stat(unit_data.stats[StatATK], capture.lv), calc_stat(unit_data.stats[StatDEF], capture.lv), calc_stat(unit_data.stats[StatSA], capture.lv),
+							calc_stat(unit_data.stats[StatSD], capture.lv), calc_stat(unit_data.stats[StatSP], capture.lv), unit_data.type1, unit_data.type2, capture.skills);
 						if (input->mpressed(Mouse_Left))
 							lord.buy_unit(city, hovered_unit);
 					}
@@ -2911,7 +3195,7 @@ void Game::on_render()
 					if (hud->button(L"New"))
 					{
 						auto& troop = city.troops.emplace_back();
-						troop.target = 0;
+						troop.target = city.tile_id;
 					}
 
 					if (hovered_unit != -1)
@@ -2921,9 +3205,9 @@ void Game::on_render()
 						auto& troop = city.troops[i];
 						auto& unit = city.units[troop.units[j]];
 						auto& unit_data = unit_datas[unit.id];
-						show_unit_detail(mpos, unit.id, unit.lv, calc_hp_stat(unit_data.HP, unit.lv), 0,
-							calc_stat(unit_data.ATK, unit.lv), calc_stat(unit_data.DEF, unit.lv), calc_stat(unit_data.SA, unit.lv),
-							calc_stat(unit_data.SD, unit.lv), calc_stat(unit_data.SP, unit.lv), unit_data.type1, unit_data.type2, unit.skills);
+						show_unit_detail(mpos, unit.id, unit.lv, calc_hp_stat(unit_data.stats[StatHP], unit.lv), 0,
+							calc_stat(unit_data.stats[StatATK], unit.lv), calc_stat(unit_data.stats[StatDEF], unit.lv), calc_stat(unit_data.stats[StatSA], unit.lv),
+							calc_stat(unit_data.stats[StatSD], unit.lv), calc_stat(unit_data.stats[StatSP], unit.lv), unit_data.type1, unit_data.type2, unit.skills);
 					}
 
 					if (!input->mbtn[Mouse_Left])
@@ -2936,7 +3220,8 @@ void Game::on_render()
 								auto& tile = tiles[i];
 								if (distance(tile.pos + tile_sz * 0.5f, mpos) < tile_sz * 0.5f)
 								{
-									city.set_troop_target(city.troops[dragging_target], i);
+									if (tile.type == TileCity)
+										city.set_troop_target(city.troops[dragging_target], i);
 									break;
 								}
 							}
@@ -2961,52 +3246,52 @@ void Game::on_render()
 		}
 			break;
 		case TileResourceField:
-			if (auto id = main_player.find_resource_field(selected_tile); id != -1)
-			{
-				auto& resource_field = main_player.resource_fields[id];
-				if (!resource_field_datas[resource_field.type].empty())
-				{
-					hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-					hud->text(std::format(L"{} LV: {}", get_resource_field_name(resource_field.type), resource_field.lv));
-					hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-					hud->text(L"Current Production: ", 22);
-					hud->image(vec2(20.f, 13.f), img_resources[resource_field.type]);
-					hud->text(std::format(L"{}", resource_field.production), 22);
-					hud->end_layout();
-					if (resource_field.lv < resource_field_datas[resource_field.type].size())
-					{
-						auto& next_level = resource_field_datas[resource_field.type][resource_field.lv];
+			//if (auto id = main_player.find_resource_field(selected_tile); id != -1)
+			//{
+			//	auto& resource_field = main_player.resource_fields[id];
+			//	if (!resource_field_datas[resource_field.type].empty())
+			//	{
+			//		hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+			//		hud->text(std::format(L"{} LV: {}", get_resource_field_name(resource_field.type), resource_field.lv));
+			//		hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+			//		hud->text(L"Current Production: ", 22);
+			//		hud->image(vec2(20.f, 13.f), img_resources[resource_field.type]);
+			//		hud->text(std::format(L"{}", resource_field.production), 22);
+			//		hud->end_layout();
+			//		if (resource_field.lv < resource_field_datas[resource_field.type].size())
+			//		{
+			//			auto& next_level = resource_field_datas[resource_field.type][resource_field.lv];
 
-						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-						hud->text(std::format(L"Level {} Production: ", resource_field.lv + 1), 22);
-						hud->image(vec2(20.f, 13.f), img_resources[resource_field.type]);
-						hud->text(std::format(L"{}", next_level.production), 22);
-						hud->end_layout();
+			//			hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+			//			hud->text(std::format(L"Level {} Production: ", resource_field.lv + 1), 22);
+			//			hud->image(vec2(20.f, 13.f), img_resources[resource_field.type]);
+			//			hud->text(std::format(L"{}", next_level.production), 22);
+			//			hud->end_layout();
 
-						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-						hud->image(vec2(18.f, 12.f), img_resources[ResourceWood]);
-						hud->text(std::format(L"{}", next_level.cost_wood), 16);
-						hud->image(vec2(18.f, 12.f), img_resources[ResourceClay]);
-						hud->text(std::format(L"{}", next_level.cost_clay), 16);
-						hud->image(vec2(18.f, 12.f), img_resources[ResourceIron]);
-						hud->text(std::format(L"{}", next_level.cost_iron), 16);
-						hud->image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
-						hud->text(std::format(L"{}", next_level.cost_crop), 16);
-						hud->end_layout();
-						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-						hud->image(vec2(18.f, 12.f), img_resources[ResourceGold]);
-						hud->text(std::format(L"{}", next_level.cost_gold), 16);
-						hud->image(vec2(18.f, 12.f), img_population);
-						hud->text(std::format(L"{}", next_level.cost_population), 16);
-						hud->end_layout();
+			//			hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+			//			hud->image(vec2(18.f, 12.f), img_resources[ResourceWood]);
+			//			hud->text(std::format(L"{}", next_level.cost_wood), 16);
+			//			hud->image(vec2(18.f, 12.f), img_resources[ResourceClay]);
+			//			hud->text(std::format(L"{}", next_level.cost_clay), 16);
+			//			hud->image(vec2(18.f, 12.f), img_resources[ResourceIron]);
+			//			hud->text(std::format(L"{}", next_level.cost_iron), 16);
+			//			hud->image(vec2(18.f, 12.f), img_resources[ResourceCrop]);
+			//			hud->text(std::format(L"{}", next_level.cost_crop), 16);
+			//			hud->end_layout();
+			//			hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+			//			hud->image(vec2(18.f, 12.f), img_resources[ResourceGold]);
+			//			hud->text(std::format(L"{}", next_level.cost_gold), 16);
+			//			hud->image(vec2(18.f, 12.f), img_population);
+			//			hud->text(std::format(L"{}", next_level.cost_population), 16);
+			//			hud->end_layout();
 
-						if (hud->button(L"Upgrade", 18))
-							main_player.upgrade_resource_field(resource_field);
-					}
-					hud->end_layout();
-					hud->stroke_item();
-				}
-			}
+			//			if (hud->button(L"Upgrade", 18))
+			//				main_player.upgrade_resource_field(resource_field);
+			//		}
+			//		hud->end_layout();
+			//		hud->stroke_item();
+			//	}
+			//}
 			break;
 		}
 	}
@@ -3072,7 +3357,8 @@ void Game::on_render()
 			auto& unit = battle_troop.troop->units[j];
 			auto& display = battle_troop.unit_displays[j];
 			auto& unit_data = unit_datas[display.unit_id];
-			show_unit_detail(mpos, display.unit_id, unit.lv, unit.HP, unit.HP_MAX, unit.ATK, unit.DEF, unit.SA, unit.SD, unit.SP, unit.type1, unit.type2, unit.skills);
+			show_unit_detail(mpos, display.unit_id, unit.lv, unit.stats[StatHP], unit.HP_MAX, unit.stats[StatATK], unit.stats[StatDEF], unit.stats[StatSA], unit.stats[StatSD], unit.stats[StatSP], 
+				unit.type1, unit.type2, unit.skills);
 		}
 	}
 
@@ -3185,12 +3471,12 @@ void Game::on_render()
 				hud->text(std::format(L"{}/{}", display.lv_exp, display.lv_exp_max), 20);
 				if (display.lv != display.old_lv)
 				{
-					auto old_hp = calc_hp_stat(unit_data.HP, display.old_lv); auto new_hp = calc_hp_stat(unit_data.HP, display.lv);
-					auto old_atk = calc_stat(unit_data.ATK, display.old_lv); auto new_atk = calc_stat(unit_data.ATK, display.lv);
-					auto old_def = calc_stat(unit_data.DEF, display.old_lv); auto new_def = calc_stat(unit_data.DEF, display.lv);
-					auto old_sa = calc_stat(unit_data.SA, display.old_lv); auto new_sa = calc_stat(unit_data.SA, display.lv);
-					auto old_sd = calc_stat(unit_data.SD, display.old_lv); auto new_sd = calc_stat(unit_data.SD, display.lv);
-					auto old_sp = calc_stat(unit_data.SP, display.old_lv); auto new_sp = calc_stat(unit_data.SP, display.lv);
+					auto old_hp = calc_hp_stat(unit_data.stats[StatHP], display.old_lv); auto new_hp = calc_hp_stat(unit_data.stats[StatHP], display.lv);
+					auto old_atk = calc_stat(unit_data.stats[StatATK], display.old_lv); auto new_atk = calc_stat(unit_data.stats[StatATK], display.lv);
+					auto old_def = calc_stat(unit_data.stats[StatDEF], display.old_lv); auto new_def = calc_stat(unit_data.stats[StatDEF], display.lv);
+					auto old_sa = calc_stat(unit_data.stats[StatSA], display.old_lv); auto new_sa = calc_stat(unit_data.stats[StatSA], display.lv);
+					auto old_sd = calc_stat(unit_data.stats[StatSD], display.old_lv); auto new_sd = calc_stat(unit_data.stats[StatSD], display.lv);
+					auto old_sp = calc_stat(unit_data.stats[StatSP], display.old_lv); auto new_sp = calc_stat(unit_data.stats[StatSP], display.lv);
 					hud->text(std::format(L"{} -> {}", display.old_lv, display.lv), 20);
 					hud->text(std::format(L"HP +{} -> {}", new_hp - old_hp, new_hp), 20);
 					hud->text(std::format(L"ATK +{} -> {}", new_atk - old_atk, new_atk), 20);
