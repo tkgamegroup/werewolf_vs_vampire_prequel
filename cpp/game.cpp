@@ -373,6 +373,7 @@ struct Unit
 	uint lv;
 	uint exp;
 	int skills[4] = { -1, -1, -1, -1 };
+	std::vector<uint> learnt_skills;
 	uint gain_exp;
 };
 
@@ -403,21 +404,38 @@ struct UnitInstance
 		memcpy(skills, unit.skills, sizeof(skills));
 	}
 
-	int choose_skill()
+	int choose_skill(UnitInstance& target)
 	{
-		auto n = 0;
-		uint cands[4];
+		std::vector<std::pair<uint, uint>> cands;
 		for (auto i = 0; i < 4; i++)
 		{
 			if (auto skill_id = skills[i]; skill_id != -1)
 			{
-				cands[n] = skill_id;
-				n++;
+				auto& skill_data = skill_datas[skill_id];
+				auto weight = 100;
+				if (skill_data.category == SkillCateStatus)
+				{
+					weight = 0;
+					for (auto& e : skill_data.effects)
+					{
+						if (e.type == EffectOpponentStat)
+						{
+							auto old_state = target.stat_stage[e.data.stat.id];
+							auto new_state = clamp(old_state + e.data.stat.state, -6, +6);
+							if (old_state != new_state)
+							{
+								for (auto i = abs(old_state) + 1; i <= abs(new_state); i++)
+									weight += 100 * (pow(0.8f, i) * e.data.stat.prob);
+							}
+						}
+					}
+				}
+				cands.emplace_back(skill_id, weight);
 			}
 		}
-		if (n == 0)
+		if (cands.empty())
 			return -1;
-		return cands[linearRand(0, n - 1)];
+		return weighted_random(cands);
 	}
 };
 
@@ -441,6 +459,16 @@ float get_stage_modifier(int stage)
 	return 1.f;
 }
 
+float get_effectineness(PokemonType skill_type, PokemonType caster_type1, PokemonType caster_type2, PokemonType target_type1, PokemonType target_type2)
+{
+	auto effectiveness1 = target_type1 != PokemonTypeCount ? pokemon_type_effectiveness[skill_type][target_type1] : 1.f;
+	auto effectiveness2 = target_type2 != PokemonTypeCount ? pokemon_type_effectiveness[skill_type][target_type2] : 1.f;
+	auto effectiveness = effectiveness1 * effectiveness2;
+	if (caster_type1 == skill_type || caster_type2 == skill_type)
+		effectiveness *= 1.5f;
+	return effectiveness;
+}
+
 struct StatChange
 {
 	bool changed = false;
@@ -450,16 +478,12 @@ struct StatChange
 bool cast_skill(UnitInstance& caster, UnitInstance& target, uint skill_id, uint& damage, StatChange& caster_stat_changed, StatChange& target_stat_changed)
 {
 	auto& skill_data = skill_datas[skill_id];
-	auto effectiveness1 = target.type1 != PokemonTypeCount ? pokemon_type_effectiveness[skill_data.type][target.type1] : 1.f;
-	auto effectiveness2 = target.type2 != PokemonTypeCount ? pokemon_type_effectiveness[skill_data.type][target.type2] : 1.f;
-	if (effectiveness1 * effectiveness2 == 0.f)
+	auto effectiveness = get_effectineness(skill_data.type, caster.type1, caster.type2, target.type1, target.type2);
+	if (effectiveness == 0.f)
 		return false;
 
 	if (skill_data.power > 0)
 	{
-		auto effectiveness = effectiveness1 * effectiveness2;
-		if (caster.type1 == skill_data.type || caster.type2 == skill_data.type)
-			effectiveness *= 1.5f;
 		auto A = skill_data.category == SkillCatePhysical ? caster.stats[StatATK] : caster.stats[StatSA];
 		auto D = skill_data.category == SkillCatePhysical ? target.stats[StatDEF] : target.stats[StatSD];
 		damage = ((2.f * caster.lv + 10.f) / 250.f * ((float)A / (float)D) * skill_data.power + 2.f) * effectiveness;
@@ -479,6 +503,8 @@ bool cast_skill(UnitInstance& caster, UnitInstance& target, uint skill_id, uint&
 			break;
 		}
 	}
+
+	return true;
 }
 
 cCameraPtr camera;
@@ -664,7 +690,7 @@ std::vector<BarracksData> barracks_datas;
 
 struct ParkData : BuildingBaseData
 {
-	std::vector<uint> encounter_list;
+	std::vector<std::pair<uint, uint>> encounter_list;
 	uint capture_num;
 };
 std::vector<ParkData> park_datas;
@@ -731,7 +757,6 @@ struct PokemonCapture
 	uint unit_id;
 	uint exclusive_id;
 	uint lv;
-	int skills[4] = { -1, -1, -1, -1 };
 };
 
 struct City
@@ -763,18 +788,6 @@ struct City
 		capture.exclusive_id = exclusive_id;
 		capture.lv = lv;
 
-		auto n = 0;
-		for (auto it = unit_data.skillset.rbegin(); it != unit_data.skillset.rend(); it++)
-		{
-			if (it->x <= lv)
-			{
-				capture.skills[n] = it->y;
-				n++;
-				if (n >= 4)
-					break;
-			}
-		}
-
 		captures.push_back(capture);
 	}
 
@@ -789,7 +802,7 @@ struct City
 			add_capture_ll(unit_id, exclusive_id, lv);
 	}
 
-	void add_unit(uint unit_id, uint lv, int* skills)
+	void add_unit(uint unit_id, uint lv)
 	{
 		auto& unit_data = unit_datas[unit_id];
 
@@ -797,8 +810,19 @@ struct City
 		unit.id = unit_id;
 		unit.lv = lv;
 		unit.exp = calc_exp(lv);
-		if (skills)
-			memcpy(unit.skills, skills, sizeof(unit.skills));
+
+		//auto n = 0;
+		//for (auto it = unit_data.skillset.rbegin(); it != unit_data.skillset.rend(); it++)
+		//{
+		//	if (it->x <= lv)
+		//	{
+		//		capture.skills[n] = it->y;
+		//		n++;
+		//		if (n >= 4)
+		//			break;
+		//	}
+		//}
+
 		units.push_back(unit);
 
 		troops.front().units.push_back(units.size() - 1);
@@ -1133,7 +1157,7 @@ struct Lord
 		resources[ResourceGold] -= unit_data.cost_gold;
 		consume_population += unit_data.cost_population;
 
-		city.add_unit(capture.unit_id, capture.lv, capture.skills);
+		city.add_unit(capture.unit_id, capture.lv);
 
 		auto exclusive_id = capture.exclusive_id;
 		if (exclusive_id != 0)
@@ -1242,6 +1266,7 @@ GameState state = GameInit;
 bool show_result = false;
 BattleTroop battle_troops[2];
 uint battle_action_side = 0;
+std::vector<std::wstring> battle_log;
 uint city_damge = 0;
 float troop_anim_time = 0.f;
 float battle_time = 0.f;
@@ -1268,9 +1293,8 @@ void new_day()
 					if (building.lv > 0)
 					{
 						auto& park_data = park_datas[building.lv - 1];
-						auto list_sz = (int)park_data.encounter_list.size();
 						for (auto i = 0; i < park_data.capture_num; i++)
-							city.add_capture(park_data.encounter_list[linearRand(0, list_sz - 1)], 1);
+							city.add_capture(weighted_random(park_data.encounter_list), 1);
 					}
 				}
 					break;
@@ -1398,6 +1422,7 @@ void step_troop_moving()
 							battle_troop.refresh_display();
 						}
 						battle_action_side = 0;
+						battle_log.clear();
 						return;
 					}
 				}
@@ -1615,133 +1640,172 @@ void step_battle()
 		auto& action_troop = battle_troops[battle_action_side];
 		auto& other_troop = battle_troops[1 - battle_action_side];
 		auto& caster = action_troop.troop->units[action_troop.action_idx];
+		auto& caster_unit_data = unit_datas[caster.id];
 		auto target_idx = linearRand(0, (int)other_troop.troop->units.size() - 1);
 		auto& target = other_troop.troop->units[target_idx];
+		auto& target_unit_data = unit_datas[target.id];
 		auto& cast_unit_display = action_troop.unit_displays[action_troop.action_idx];
 		auto& target_unit_display = other_troop.unit_displays[target_idx];
 
-		auto skill_id = caster.choose_skill();
-		uint damage = 0;
-		StatChange caster_stat_change;
-		StatChange target_stat_change;
-		if (skill_id != -1)
+		if (auto skill_id = caster.choose_skill(target); skill_id != -1)
+		{
+			auto& skill_data = skill_datas[skill_id];
+
+			uint damage = 0;
+			StatChange caster_stat_change;
+			StatChange target_stat_change;
+
 			cast_skill(caster, target, skill_id, damage, caster_stat_change, target_stat_change);
 
-		{
-			auto id = game.tween->begin_2d_targets();
-			game.tween->add_2d_target(id, &cast_unit_display.pos, nullptr, &cast_unit_display.scl, nullptr);
-			game.tween->add_2d_target(id, nullptr, nullptr, nullptr, &target_unit_display.alpha);
-			game.tween->add_2d_target(id, &target_unit_display.label_pos, nullptr, nullptr, nullptr);
-			game.tween->add_int_target(id, (int*)&target_unit_display.HP);
-			game.tween->scale_to(id, vec2(1.5f), 0.3f);
-			auto target_pos = mix(cast_unit_display.pos, target_unit_display.pos, 0.8f);
-			game.tween->move_to(id, target_pos, 0.3f);
-			game.tween->set_ease(id, EaseInCubic);
-			auto time_cast = game.tween->get_time(id);
+			{
+				auto id = game.tween->begin_2d_targets();
+				game.tween->add_2d_target(id, &cast_unit_display.pos, nullptr, &cast_unit_display.scl, nullptr);
+				game.tween->add_2d_target(id, nullptr, nullptr, nullptr, &target_unit_display.alpha);
+				game.tween->add_2d_target(id, &target_unit_display.label_pos, nullptr, nullptr, nullptr);
+				game.tween->add_int_target(id, (int*)&target_unit_display.HP);
+				game.tween->scale_to(id, vec2(1.5f), 0.3f);
+				auto target_pos = mix(cast_unit_display.pos, target_unit_display.pos, 0.8f);
+				game.tween->move_to(id, target_pos, 0.3f);
+				game.tween->set_ease(id, EaseInCubic);
+				auto time_cast = game.tween->get_time(id);
 
-			game.tween->set_target(id, 2);
-			game.tween->set_channel(id, 2, time_cast);
-			std::wstring target_label = L"";
+				game.tween->set_target(id, 2);
+				game.tween->set_channel(id, 2, time_cast);
+				std::wstring caster_label = L"";
+				std::wstring target_label = L"";
+				std::wstring log = L"";
+				log = std::format(L"{} LV{} cast {} to {} LV{}", caster_unit_data.name, caster.lv, skill_data.name, target_unit_data.name, target.lv);
+				if (damage > 0)
+				{
+					target_label = wstr(damage);
+					log += std::format(L", inflicted {} damage", damage);
+				}
+				if (target_stat_change.changed)
+				{
+					for (auto i = (int)StatATK; i < StatCount; i++)
+					{
+						if (auto v = target_stat_change.stage[i]; v != 0)
+						{
+							if (!target_label.empty())
+								target_label += L"\n";
+							auto stage = target.stat_stage[i];
+							auto new_val = clamp(stage + v, -6, +6);
+							if (stage != new_val)
+							{
+								switch (new_val - stage)
+								{
+								case -1:
+								{
+									auto str = std::format(L"{} fell", get_stat_name((Stat)i));;
+									target_label += str;
+									log += L", target " + str;
+								}
+									break;
+								case -2:
+								{
+									auto str = std::format(L"{} harshly fell", get_stat_name((Stat)i));
+									target_label += str;
+									log += L", target " + str;
+								}
+									break;
+								case +1:
+								{
+									auto str = std::format(L"{} rose", get_stat_name((Stat)i));
+									target_label += str;
+									log += L", target " + str;
+								}
+									break;
+								case +2:
+								{
+									auto str = std::format(L"{} rose sharply", get_stat_name((Stat)i));
+									target_label += str;
+									log += L", target " + str;
+								}
+									break;
+								}
+							}
+							else
+							{
+								if (v < 0)
+								{
+									auto str = std::format(L"{} won't go any lower", get_stat_name((Stat)i));
+									target_label += str;
+									log += L", target " + str;
+								}
+								if (v > 0)
+								{
+									auto str = std::format(L"{} won't go any higher", get_stat_name((Stat)i));
+									target_label += str;
+									log += L", target " + str;
+								}
+							}
+						}
+					}
+				}
+				game.tween->set_callback(id, [&, target_label, log]() {
+					target_unit_display.label = target_label;
+					target_unit_display.label_pos = target_unit_display.init_pos + vec2(0.f, -45.f);
+					battle_log.push_back(log);
+					if (battle_log.size() > 5)
+						battle_log.erase(battle_log.begin());
+				});
+				game.tween->move_to(id, target_unit_display.init_pos + vec2(0.f, -60.f), 0.4f);
+				game.tween->set_callback(id, [&]() {
+					target_unit_display.label = L"";
+				});
+
+				game.tween->set_target(id, 3);
+				game.tween->set_channel(id, 3, time_cast);
+				game.tween->int_val_to(id, max(0, (int)target.stats[StatHP] - (int)damage), 0.4f);
+
+				if (target.stats[StatHP] <= 0)
+				{
+					game.tween->set_target(id, 1);
+					game.tween->alpha_to(id, 0.f, 0.4f);
+					game.tween->set_ease(id, EaseInCubic);
+				}
+
+				game.tween->set_target(id, 0U);
+				game.tween->set_channel(id, 0, time_cast);
+				game.tween->move_to(id, cast_unit_display.pos, 0.3f);
+				game.tween->set_channel(id, 1, time_cast);
+				game.tween->scale_to(id, vec2(1.f), 0.3f);
+				anim_remain = game.tween->end(id) + 0.1f;
+			}
+
 			if (damage > 0)
-				target_label = wstr(damage);
+				target.stats[StatHP] = max(0, (int)target.stats[StatHP] - (int)damage);
+			if (caster_stat_change.changed)
+			{
+				auto& unit_data = unit_datas[caster.id];
+				for (auto i = (int)StatATK; i < StatCount; i++)
+				{
+					if (auto v = caster_stat_change.stage[i]; v != 0)
+					{
+						auto& stage = caster.stat_stage[i];
+						auto new_val = clamp(stage + v, -6, +6);
+						if (stage != new_val)
+						{
+							stage = new_val;
+							caster.stats[i] = calc_stat(unit_data.stats[i], caster.lv) * get_stage_modifier(stage);
+						}
+					}
+				}
+			}
 			if (target_stat_change.changed)
 			{
+				auto& unit_data = unit_datas[target.id];
 				for (auto i = (int)StatATK; i < StatCount; i++)
 				{
 					if (auto v = target_stat_change.stage[i]; v != 0)
 					{
-						if (!target_label.empty())
-							target_label += L"\n";
 						auto& stage = target.stat_stage[i];
 						auto new_val = clamp(stage + v, -6, +6);
 						if (stage != new_val)
 						{
-							switch (new_val - stage)
-							{
-							case -1:
-								target_label += std::format(L"{} fell", get_stat_name((Stat)i));
-								break;
-							case -2:
-								target_label += std::format(L"{} harshly fell", get_stat_name((Stat)i));
-								break;
-							case +1:
-								target_label += std::format(L"{} rose", get_stat_name((Stat)i));
-								break;
-							case +2:
-								target_label += std::format(L"{} rose sharply", get_stat_name((Stat)i));
-								break;
-							}
+							stage = new_val;
+							target.stats[i] = calc_stat(unit_data.stats[i], target.lv) * get_stage_modifier(stage);
 						}
-						else
-						{
-							if (v < 0)
-								target_label += std::format(L"{} won't go any lower", get_stat_name((Stat)i));
-							if (v > 0)
-								target_label += std::format(L"{} won't go any higher", get_stat_name((Stat)i));
-						}
-					}
-				}
-			}
-			game.tween->set_callback(id, [&, target_label]() {
-				target_unit_display.label = target_label;
-				target_unit_display.label_pos = target_unit_display.init_pos + vec2(0.f, -45.f);
-			});
-			game.tween->move_to(id, target_unit_display.init_pos + vec2(0.f, -60.f), 0.4f);
-			game.tween->set_callback(id, [&]() {
-				target_unit_display.label = L"";
-			});
-
-			game.tween->set_target(id, 3);
-			game.tween->set_channel(id, 3, time_cast);
-			game.tween->int_val_to(id, max(0, (int)target.stats[StatHP] - (int)damage), 0.4f);
-
-			if (target.stats[StatHP] <= 0)
-			{
-				game.tween->set_target(id, 1);
-				game.tween->alpha_to(id, 0.f, 0.4f);
-				game.tween->set_ease(id, EaseInCubic);
-			}
-
-			game.tween->set_target(id, 0U);
-			game.tween->set_channel(id, 0, time_cast);
-			game.tween->move_to(id, cast_unit_display.pos, 0.3f);
-			game.tween->set_channel(id, 1, time_cast);
-			game.tween->scale_to(id, vec2(1.f), 0.3f);
-			anim_remain = game.tween->end(id) + 0.1f;
-		}
-
-		if (damage > 0)
-			target.stats[StatHP] = max(0, (int)target.stats[StatHP] - (int)damage);
-		if (caster_stat_change.changed)
-		{
-			auto& unit_data = unit_datas[caster.id];
-			for (auto i = (int)StatATK; i < StatCount; i++)
-			{
-				if (auto v = caster_stat_change.stage[i]; v != 0)
-				{
-					auto& stage = caster.stat_stage[i];
-					auto new_val = clamp(stage + v, -6, +6);
-					if (stage != new_val)
-					{
-						stage = new_val;
-						caster.stats[i] = calc_stat(unit_data.stats[i], caster.lv) * get_stage_modifier(stage);
-					}
-				}
-			}
-		}
-		if (target_stat_change.changed)
-		{
-			auto& unit_data = unit_datas[target.id];
-			for (auto i = (int)StatATK; i < StatCount; i++)
-			{
-				if (auto v = target_stat_change.stage[i]; v != 0)
-				{
-					auto& stage = target.stat_stage[i];
-					auto new_val = clamp(stage + v, -6, +6);
-					if (stage != new_val)
-					{
-						stage = new_val;
-						target.stats[i] = calc_stat(unit_data.stats[i], target.lv) * get_stage_modifier(stage);
 					}
 				}
 			}
@@ -2468,7 +2532,12 @@ void Game::init()
 			ParkData data;
 			auto& row = sht->rows[i];
 			data.read(row, sht);
-			data.encounter_list = sht->get_as<std::vector<uint>>(row, "encounter_list"_h);
+			{
+				auto vec = sht->get_as<std::vector<uint>>(row, "encounter_list"_h);
+				data.encounter_list.resize(vec.size() / 2);
+				for (auto i = 0; i < data.encounter_list.size(); i++)
+					data.encounter_list[i] = { vec[i * 2], vec[i * 2 + 1] };
+			}
 			data.capture_num = sht->get_as<uint>(row, "capture_num"_h);
 
 			park_datas.push_back(data);
@@ -2685,7 +2754,7 @@ void Game::on_render()
 
 	auto show_unit_detail = [&](const vec2& mpos, uint id, uint lv, uint HP, uint HP_MAX, uint ATK, uint DEF, uint SA, uint SD, uint SP, PokemonType type1, PokemonType type2, int* skills) {
 		auto& unit_data = unit_datas[id];
-		hud->begin(mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255), vec2(0.f, mpos.y > 540.f ? 1.f : 0.f));
+		hud->begin("popup"_h, mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255), vec2(0.f, mpos.y > 540.f ? 1.f : 0.f));
 		hud->begin_layout(HudHorizontal, vec2(0.f), vec2(4.f, 0.f));
 		hud->begin_layout(HudVertical);
 		hud->text(std::format(L"{} LV {}", unit_data.name, lv));
@@ -2700,20 +2769,23 @@ void Game::on_render()
 		else
 			hud->text(std::format(L"HP {}/{}\nATK {}\nDEF {}\nSA {}\nSD {}\nSP {}", HP, HP_MAX, ATK, DEF, SA, SD, SP), 20);
 		hud->end_layout();
-		for (auto i = 0; i < 4; i++)
+		if (skills)
 		{
-			auto skill_id = skills[i];
-			if (skill_id != -1)
+			for (auto i = 0; i < 4; i++)
 			{
-				auto& skill_data = skill_datas[skill_id];
-				hud->begin_layout(HudVertical);
-				hud->text(skill_data.name);
-				hud->text(get_pokemon_type_name(skill_data.type), 20, get_pokemon_type_color(skill_data.type));
-				if (skill_data.power > 0)
-					hud->text(std::format(L"Power {}", skill_data.power));
-				hud->text(skill_data.effect_text, 18);
-				hud->end_layout();
-				hud->stroke_item();
+				auto skill_id = skills[i];
+				if (skill_id != -1)
+				{
+					auto& skill_data = skill_datas[skill_id];
+					hud->begin_layout(HudVertical);
+					hud->text(skill_data.name);
+					hud->text(get_pokemon_type_name(skill_data.type), 20, get_pokemon_type_color(skill_data.type));
+					if (skill_data.power > 0)
+						hud->text(std::format(L"Power {}", skill_data.power));
+					hud->text(skill_data.effect_text, 18);
+					hud->end_layout();
+					hud->stroke_item();
+				}
 			}
 		}
 		hud->end_layout();
@@ -2721,7 +2793,7 @@ void Game::on_render()
 	};
 
 	auto bottom_pannel_height = 275.f;
-	hud->begin(vec2(0.f, screen_size.y - bottom_pannel_height), vec2(screen_size.x, bottom_pannel_height), cvec4(0, 0, 0, 255));
+	hud->begin("bottom"_h, vec2(0.f, screen_size.y - bottom_pannel_height), vec2(screen_size.x, bottom_pannel_height), cvec4(0, 0, 0, 255));
 	auto rect = hud->wnd_rect();
 	if (selected_tile != -1)
 	{
@@ -3092,7 +3164,7 @@ void Game::on_render()
 						auto& unit_data = unit_datas[capture.unit_id];
 						show_unit_detail(mpos, capture.unit_id, capture.lv, calc_hp_stat(unit_data.stats[StatHP], capture.lv), 0,
 							calc_stat(unit_data.stats[StatATK], capture.lv), calc_stat(unit_data.stats[StatDEF], capture.lv), calc_stat(unit_data.stats[StatSA], capture.lv),
-							calc_stat(unit_data.stats[StatSD], capture.lv), calc_stat(unit_data.stats[StatSP], capture.lv), unit_data.type1, unit_data.type2, capture.skills);
+							calc_stat(unit_data.stats[StatSD], capture.lv), calc_stat(unit_data.stats[StatSP], capture.lv), unit_data.type1, unit_data.type2, nullptr);
 						if (input->mpressed(Mouse_Left))
 							lord.buy_unit(city, hovered_unit);
 					}
@@ -3297,7 +3369,7 @@ void Game::on_render()
 	}
 	hud->end();
 
-	hud->begin(vec2(screen_size.x - 100.f, screen_size.y - 300.f), vec2(160.f, 300.f), cvec4(0, 0, 0, 255));
+	hud->begin("side"_h, vec2(screen_size.x - 100.f, screen_size.y - 300.f), vec2(160.f, 300.f), cvec4(0, 0, 0, 255));
 	if (state == GameDay)
 	{
 		if (hud->button(L"Start Battle"))
@@ -3312,8 +3384,15 @@ void Game::on_render()
 				return battle_troop.troop->lord_id;
 			return battle_troop.city->lord_id;
 		};
-		canvas->draw_rect_filled(vec2(100.f, 250.f), vec2(800.f, 350.f), hsv(get_lord_id(battle_troops[0]) * 60.f, 0.5f, 0.5f, 1.f));
-		canvas->draw_rect_filled(vec2(100.f, 150.f), vec2(800.f, 250.f), hsv(get_lord_id(battle_troops[1]) * 60.f, 0.5f, 0.5f, 1.f));
+
+		hud->begin("battle"_h, vec2(100.f, 150.f), vec2(0.f), cvec4(0, 0, 0, 255), vec2(0.f), {}, vec4(0.f), true);
+
+		hud->begin_layout(HudVertical, vec2(0.f), vec2(0.f));
+		hud->rect(vec2(700.f, 100.f), hsv(get_lord_id(battle_troops[1]) * 60.f, 0.5f, 0.5f, 1.f));
+		hud->rect(vec2(700.f, 100.f), hsv(get_lord_id(battle_troops[0]) * 60.f, 0.5f, 0.5f, 1.f));
+		for (auto& log : battle_log)
+			hud->text(log, 20);
+		hud->end_layout();
 
 		auto hovered_unit = -1;
 
@@ -3360,6 +3439,8 @@ void Game::on_render()
 			show_unit_detail(mpos, display.unit_id, unit.lv, unit.stats[StatHP], unit.HP_MAX, unit.stats[StatATK], unit.stats[StatDEF], unit.stats[StatSA], unit.stats[StatSD], unit.stats[StatSP], 
 				unit.type1, unit.type2, unit.skills);
 		}
+
+		hud->end();
 	}
 
 	{
@@ -3453,7 +3534,7 @@ void Game::on_render()
 		{
 		case StepShowExpGain:
 		{
-			hud->begin(vec2(100.f, 250.f), vec2(700.f, 250.f), hsv(main_player.id * 60.f, 0.5f, 0.5f, 1.f));
+			hud->begin("show_exp_gain"_h, vec2(100.f, 250.f), vec2(700.f, 250.f), hsv(main_player.id * 60.f, 0.5f, 0.5f, 1.f));
 			auto& city = main_player.cities[path_idx];
 			hud->begin_layout(HudHorizontal);
 			for (auto i = 0; i < city.units.size(); i++)
@@ -3494,7 +3575,7 @@ void Game::on_render()
 		}
 	}
 
-	hud->begin(vec2(0.f, 0.f), vec2(screen_size.x, 20.f), cvec4(0, 0, 0, 255));
+	hud->begin("top"_h, vec2(0.f, 0.f), vec2(screen_size.x, 20.f), cvec4(0, 0, 0, 255));
 	hud->begin_layout(HudHorizontal, vec2(0.f), vec2(16.f, 0.f));
 	hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
 	hud->image(vec2(27.f, 18.f), img_resources[ResourceWood]);
@@ -3502,7 +3583,7 @@ void Game::on_render()
 	hud->end_layout();
 	if (hud->item_hovered())
 	{
-		hud->begin(mpos + vec2(0.f, 10.f));
+		hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
 		hud->text(std::format(L"Wood: {}\nProduction: {}", main_player.resources[ResourceWood], main_player.get_production(ResourceWood)));
 		hud->end();
 	}
@@ -3512,7 +3593,7 @@ void Game::on_render()
 	hud->end_layout();
 	if (hud->item_hovered())
 	{
-		hud->begin(mpos + vec2(0.f, 10.f));
+		hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
 		hud->text(std::format(L"Clay: {}\nProduction: {}", main_player.resources[ResourceClay], main_player.get_production(ResourceClay)));
 		hud->end();
 	}
@@ -3522,7 +3603,7 @@ void Game::on_render()
 	hud->end_layout();
 	if (hud->item_hovered())
 	{
-		hud->begin(mpos + vec2(0.f, 10.f));
+		hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
 		hud->text(std::format(L"Iron: {}\nProduction: {}", main_player.resources[ResourceIron], main_player.get_production(ResourceIron)));
 		hud->end();
 	}
@@ -3532,7 +3613,7 @@ void Game::on_render()
 	hud->end_layout();
 	if (hud->item_hovered())
 	{
-		hud->begin(mpos + vec2(0.f, 10.f));
+		hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
 		hud->text(std::format(L"Crop: {}\nProduction: {}", main_player.resources[ResourceCrop], main_player.get_production(ResourceCrop)));
 		hud->end();
 	}
@@ -3542,7 +3623,7 @@ void Game::on_render()
 	hud->end_layout();
 	if (hud->item_hovered())
 	{
-		hud->begin(mpos + vec2(0.f, 10.f));
+		hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
 		hud->text(std::format(L"Gold: {}", main_player.resources[ResourceGold]));
 		hud->end();
 	}
@@ -3552,7 +3633,7 @@ void Game::on_render()
 	hud->end_layout();
 	if (hud->item_hovered())
 	{
-		hud->begin(mpos + vec2(0.f, 10.f));
+		hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
 		hud->text(std::format(L"Population\nProvide: {}\nConsume: {}", main_player.provide_population, main_player.consume_population));
 		hud->end();
 	}
@@ -3571,6 +3652,30 @@ Game game;
 
 int entry(int argc, char** args)
 {
+	{
+		auto copied = get_clipboard();
+		if (!copied.empty())
+		{
+			std::wstring ret = L"";
+			for (auto line : SUW::split(copied, L'\n'))
+			{
+				auto sp = SUW::split(line, L'\t');
+				if (sp.size() >= 2)
+				{
+					auto lv = std::wstring(sp[0]);
+					auto name = std::wstring(sp[1]);
+					name = get_display_name(name);
+					if (!ret.empty())
+						ret += L",";
+					ret += lv + L':' + name;
+				}
+			}
+			ret = L"skillset=\"" + ret + L"\" ";
+			set_clipboard(ret);
+			return 0;
+		}
+	}
+
 	game.init();
 	game.run();
 
