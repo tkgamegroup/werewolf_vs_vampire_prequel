@@ -359,6 +359,7 @@ struct UnitData
 	std::wstring name;
 	uint cost_gold;
 	uint cost_population;
+	uint evolution_lv = 0;
 	uint stats[StatCount];
 	PokemonType type1 = PokemonTypeCount;
 	PokemonType type2 = PokemonTypeCount;
@@ -375,6 +376,29 @@ struct Unit
 	int skills[4] = { -1, -1, -1, -1 };
 	std::vector<uint> learnt_skills;
 	uint gain_exp;
+
+	bool has_learnt_skill(uint skill_id)
+	{
+		for (auto id : learnt_skills)
+		{
+			if (id == skill_id)
+				return true;
+		}
+		return false;
+	}
+
+	void learn_skills()
+	{
+		auto& unit_data = unit_datas[id];
+		for (auto v : unit_data.skillset)
+		{
+			if (v.x <= lv)
+			{
+				if (!has_learnt_skill(v.y))
+					learnt_skills.push_back(v.y);
+			}
+		}
+	}
 };
 
 struct UnitInstance
@@ -810,18 +834,17 @@ struct City
 		unit.id = unit_id;
 		unit.lv = lv;
 		unit.exp = calc_exp(lv);
-
-		//auto n = 0;
-		//for (auto it = unit_data.skillset.rbegin(); it != unit_data.skillset.rend(); it++)
-		//{
-		//	if (it->x <= lv)
-		//	{
-		//		capture.skills[n] = it->y;
-		//		n++;
-		//		if (n >= 4)
-		//			break;
-		//	}
-		//}
+		unit.learn_skills();
+		{
+			auto n = 0;
+			for (auto it = unit.learnt_skills.rbegin(); it != unit.learnt_skills.rend(); it++)
+			{
+				if (n >= 4)
+					break;
+				unit.skills[n] = *it;
+				n++;
+			}
+		}
 
 		units.push_back(unit);
 
@@ -2441,6 +2464,7 @@ void Game::init()
 			data.name = sht->get_as_wstr(row, "name"_h);
 			data.cost_gold = sht->get_as<uint>(row, "cost_gold"_h);
 			data.cost_population = sht->get_as<uint>(row, "cost_population"_h);
+			data.evolution_lv = sht->get_as<uint>(row, "evolution_lv"_h);
 			data.stats[StatHP] = sht->get_as<uint>(row, "HP"_h);
 			data.stats[StatATK] = sht->get_as<uint>(row, "ATK"_h);
 			data.stats[StatDEF] = sht->get_as<uint>(row, "DEF"_h);
@@ -2478,6 +2502,33 @@ void Game::init()
 				data.icon = graphics::Image::get(L"assets/pokemon/" + std::wstring(buf) + L".png");
 			}
 			unit_datas.push_back(data);
+		}
+		for (auto i = 0; i < unit_datas.size(); i++)
+		{
+			auto& unit_data = unit_datas[i];
+			if (unit_data.evolution_lv != 0)
+			{
+				auto& evo_unit_data = unit_datas[i + 1];
+				evo_unit_data.skillset.insert(evo_unit_data.skillset.end(), unit_data.skillset.begin(), unit_data.skillset.end());
+			}
+		}
+		for (auto& unit_data : unit_datas)
+		{
+			for (auto i = 0; i < unit_data.skillset.size(); i++)
+			{
+				auto v = unit_data.skillset[i];
+				for (auto it = unit_data.skillset.begin() + i + 1; it != unit_data.skillset.end(); )
+				{
+					if (it->y == v.y)
+					{
+						if (it->x < v.x)
+							v.x = it->x;
+						it = unit_data.skillset.erase(it);
+					}
+					else
+						it++;
+				}
+			}
 		}
 	}
 	if (auto sht = Sheet::get(L"assets/building_slots.sht"); sht)
@@ -2752,10 +2803,8 @@ void Game::on_render()
 		}
 	}
 
-	auto show_unit_detail = [&](const vec2& mpos, uint id, uint lv, uint HP, uint HP_MAX, uint ATK, uint DEF, uint SA, uint SD, uint SP, PokemonType type1, PokemonType type2, int* skills) {
+	auto show_unit_basic = [&](uint id, uint lv, uint HP, uint HP_MAX, uint ATK, uint DEF, uint SA, uint SD, uint SP, PokemonType type1, PokemonType type2) {
 		auto& unit_data = unit_datas[id];
-		hud->begin("popup"_h, mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255), vec2(0.f, mpos.y > 540.f ? 1.f : 0.f));
-		hud->begin_layout(HudHorizontal, vec2(0.f), vec2(4.f, 0.f));
 		hud->begin_layout(HudVertical);
 		hud->text(std::format(L"{} LV {}", unit_data.name, lv));
 		hud->begin_layout(HudHorizontal);
@@ -2769,21 +2818,31 @@ void Game::on_render()
 		else
 			hud->text(std::format(L"HP {}/{}\nATK {}\nDEF {}\nSA {}\nSD {}\nSP {}", HP, HP_MAX, ATK, DEF, SA, SD, SP), 20);
 		hud->end_layout();
+	};
+
+	auto show_skill = [&](uint id) {
+		auto& skill_data = skill_datas[id];
+		hud->begin_layout(HudVertical);
+		hud->text(skill_data.name);
+		hud->text(get_pokemon_type_name(skill_data.type), 20, get_pokemon_type_color(skill_data.type));
+		if (skill_data.power > 0)
+			hud->text(std::format(L"Power {}", skill_data.power));
+		hud->text(skill_data.effect_text, 18);
+		hud->end_layout();
+	};
+
+	auto popup_unit_detail = [&](const vec2& mpos, uint id, uint lv, uint HP, uint HP_MAX, uint ATK, uint DEF, uint SA, uint SD, uint SP, PokemonType type1, PokemonType type2, int* skills) {
+		auto& unit_data = unit_datas[id];
+		hud->begin("popup"_h, mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255), vec2(0.f, mpos.y > 540.f ? 1.f : 0.f));
+		hud->begin_layout(HudHorizontal, vec2(0.f), vec2(4.f, 0.f));
+		show_unit_basic(id, lv, HP, HP_MAX, ATK, DEF, SA, SD, SP, type1, type2);
 		if (skills)
 		{
 			for (auto i = 0; i < 4; i++)
 			{
-				auto skill_id = skills[i];
-				if (skill_id != -1)
+				if (auto skill_id = skills[i]; skill_id != -1)
 				{
-					auto& skill_data = skill_datas[skill_id];
-					hud->begin_layout(HudVertical);
-					hud->text(skill_data.name);
-					hud->text(get_pokemon_type_name(skill_data.type), 20, get_pokemon_type_color(skill_data.type));
-					if (skill_data.power > 0)
-						hud->text(std::format(L"Power {}", skill_data.power));
-					hud->text(skill_data.effect_text, 18);
-					hud->end_layout();
+					show_skill(skill_id);
 					hud->stroke_item();
 				}
 			}
@@ -2856,6 +2915,7 @@ void Game::on_render()
 			{
 				TabBuildings,
 				TabRecruit,
+				TabUnits,
 				TabTroops
 			};
 			static Tab tab = TabBuildings;
@@ -2891,6 +2951,18 @@ void Game::on_render()
 				{
 					if (hud->button(L"Recruit"))
 						tab = TabRecruit;
+				}
+				if (tab != TabUnits)
+				{
+					hud->push_style_color(HudStyleColorButton, cvec4(127, 127, 127, 255));
+					if (hud->button(L"Units"))
+						tab = TabUnits;
+					hud->pop_style_color(HudStyleColorButton);
+				}
+				else
+				{
+					if (hud->button(L"Units"))
+						tab = TabUnits;
 				}
 				if (tab != TabTroops)
 				{
@@ -3162,11 +3234,147 @@ void Game::on_render()
 					{
 						auto& capture = city.captures[hovered_unit];
 						auto& unit_data = unit_datas[capture.unit_id];
-						show_unit_detail(mpos, capture.unit_id, capture.lv, calc_hp_stat(unit_data.stats[StatHP], capture.lv), 0,
+						popup_unit_detail(mpos, capture.unit_id, capture.lv, calc_hp_stat(unit_data.stats[StatHP], capture.lv), 0,
 							calc_stat(unit_data.stats[StatATK], capture.lv), calc_stat(unit_data.stats[StatDEF], capture.lv), calc_stat(unit_data.stats[StatSA], capture.lv),
 							calc_stat(unit_data.stats[StatSD], capture.lv), calc_stat(unit_data.stats[StatSP], capture.lv), unit_data.type1, unit_data.type2, nullptr);
 						if (input->mpressed(Mouse_Left))
 							lord.buy_unit(city, hovered_unit);
+					}
+				}
+					break;
+				case TabUnits:
+				{
+					static uint selected_unit = 0;
+					static int dragging_skill = -1;
+					auto hovered_skill = -1;
+					if (selected_unit >= city.units.size())
+						selected_unit = 0;
+					const float size = 64.f;
+					hud->begin_layout(HudHorizontal);
+					if (city.units.empty())
+						hud->rect(vec2(size), cvec4(0));
+					for (auto i = 0; i < city.units.size(); i++)
+					{
+						auto& unit = city.units[i];
+						auto& unit_data = unit_datas[unit.id];
+						if (unit_data.icon)
+						{
+							if (hud->image_button(vec2(size), unit_data.icon))
+								selected_unit = i;
+						}
+					}
+					hud->end_layout();
+					if (selected_unit < city.units.size())
+					{
+						auto& unit = city.units[selected_unit];
+						auto& unit_data = unit_datas[unit.id];
+
+						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(16.f, 0.f));
+
+						show_unit_basic(unit.id, unit.lv, calc_hp_stat(unit_data.stats[StatHP], unit.lv), 0,
+							calc_stat(unit_data.stats[StatATK], unit.lv), calc_stat(unit_data.stats[StatDEF], unit.lv),
+							calc_stat(unit_data.stats[StatSA], unit.lv), calc_stat(unit_data.stats[StatSD], unit.lv),
+							calc_stat(unit_data.stats[StatSP], unit.lv), unit_data.type1, unit_data.type2);
+
+						hud->begin_layout(HudVertical, vec2(0.f), vec2(0.f, 8.f));
+						hud->text(L"Skills In Use:", 20);
+						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(8.f, 0.f));
+						for (auto i = 0; i < 4; i++)
+						{
+							auto skill_id = unit.skills[i];
+							hud->rect(vec2(64.f, 32.f), cvec4(100, 100, 100, 255));
+							auto pos = hud->item_rect().a;
+							if (hud->item_hovered())
+							{
+								hud->stroke_item();
+								if (skill_id != -1)
+									hovered_skill = skill_id;
+								if (dragging_skill != -1 && input->mreleased(Mouse_Left))
+								{
+									if (dragging_skill > 1000)
+										std::swap(unit.skills[dragging_skill - 1001], unit.skills[i]);
+									else
+									{
+										auto skill_id = unit.learnt_skills[dragging_skill];
+										for (auto i = 0; i < 4; i++)
+										{
+											if (unit.skills[i] == skill_id)
+												unit.skills[i] = -1;
+										}
+										unit.skills[i] = skill_id;
+									}
+								}
+							}
+							if (hud->item_clicked())
+							{
+								if (skill_id != -1)
+									dragging_skill = 1001 + i;
+							}
+							if (skill_id != -1)
+							{
+								auto& skill_data = skill_datas[skill_id];
+								draw_text(skill_data.name, 18, pos);
+							}
+						}
+						hud->end_layout();
+						hud->text(L"Learnt Skills:", 20);
+						hud->begin_layout(HudHorizontal, vec2(0.f), vec2(8.f, 0.f));
+						for (auto i = 0; i < unit.learnt_skills.size(); i++)
+						{
+							auto skill_id = unit.learnt_skills[i];
+							hud->rect(vec2(64.f, 32.f), cvec4(100, 100, 100, 255));
+							auto pos = hud->item_rect().a;
+							if (hud->item_hovered())
+							{
+								hud->stroke_item();
+								hovered_skill = skill_id;
+								if (dragging_skill != -1 && input->mreleased(Mouse_Left))
+								{
+									if (dragging_skill > 1000)
+									{
+										auto n = 0;
+										for (auto i = 0; i < 4; i++)
+										{
+											if (unit.skills[i] != -1)
+												n++;
+										}
+										if (n > 1)
+											unit.skills[dragging_skill - 1001] = -1;
+									}
+								}
+							}
+							if (hud->item_clicked())
+								dragging_skill = i;
+							auto& skill_data = skill_datas[skill_id];
+							draw_text(skill_data.name, 18, pos);
+						}
+						hud->end_layout();
+						hud->end_layout();
+
+						if (hovered_skill != -1)
+						{
+							hud->begin("popup"_h, mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255), vec2(0.f, mpos.y > 540.f ? 1.f : 0.f));
+							show_skill(hovered_skill);
+							hud->end();
+						}
+
+						hud->end_layout();
+
+						if (!input->mbtn[Mouse_Left])
+							dragging_skill = -1;
+						if (dragging_skill != -1)
+						{
+							auto skill_id = -1;
+							if (dragging_skill > 1000)
+								skill_id = unit.skills[dragging_skill - 1001];
+							else
+								skill_id = unit.learnt_skills[dragging_skill];
+							if (skill_id != -1)
+							{
+								auto& skill_data = skill_datas[skill_id];
+								draw_text(skill_data.name, 18, mpos);
+							}
+						}
 					}
 				}
 					break;
@@ -3213,16 +3421,16 @@ void Game::on_render()
 							hud->rect(vec2(size), cvec4(0));
 						for (auto i = 0; i < troop.units.size(); i++)
 						{
-							auto path_idx = troop.units[i];
-							auto& unit = city.units[path_idx];
+							auto idx = troop.units[i];
+							auto& unit = city.units[idx];
 							auto& unit_data = unit_datas[unit.id];
 							if (unit_data.icon)
 							{
 								if (hud->image_button(vec2(size), unit_data.icon))
-									dragging_unit = path_idx;
+									dragging_unit = idx;
 								if (hud->item_hovered())
 								{
-									hovered_unit = tidx * 100 + i;
+									hovered_unit = idx;
 									if (dragging_unit != -1 && input->mreleased(Mouse_Left))
 									{
 										auto ok = false;
@@ -3232,7 +3440,7 @@ void Game::on_render()
 											{
 												if (_troop.units[j] == dragging_unit)
 												{
-													_troop.units[j] = path_idx;
+													_troop.units[j] = idx;
 													troop.units[i] = dragging_unit;
 													ok = true;
 													break;
@@ -3257,7 +3465,7 @@ void Game::on_render()
 								draw_image(img_target, tiles[troop.target].pos + vec2(tile_sz) * 0.5f, vec2(32.f), vec2(0.5f, 0.5f), cvec4(255, 255, 255, 200));
 						}
 						hud->end_layout();
-						};
+					};
 
 					hud->text(L"In City:");
 					show_troop(0);
@@ -3272,12 +3480,9 @@ void Game::on_render()
 
 					if (hovered_unit != -1)
 					{
-						auto i = hovered_unit / 100;
-						auto j = hovered_unit % 100;
-						auto& troop = city.troops[i];
-						auto& unit = city.units[troop.units[j]];
+						auto& unit = city.units[hovered_unit];
 						auto& unit_data = unit_datas[unit.id];
-						show_unit_detail(mpos, unit.id, unit.lv, calc_hp_stat(unit_data.stats[StatHP], unit.lv), 0,
+						popup_unit_detail(mpos, unit.id, unit.lv, calc_hp_stat(unit_data.stats[StatHP], unit.lv), 0,
 							calc_stat(unit_data.stats[StatATK], unit.lv), calc_stat(unit_data.stats[StatDEF], unit.lv), calc_stat(unit_data.stats[StatSA], unit.lv),
 							calc_stat(unit_data.stats[StatSD], unit.lv), calc_stat(unit_data.stats[StatSP], unit.lv), unit_data.type1, unit_data.type2, unit.skills);
 					}
@@ -3305,10 +3510,10 @@ void Game::on_render()
 						auto& unit = city.units[dragging_unit];
 						auto& unit_data = unit_datas[unit.id];
 						if (unit_data.icon)
-							draw_image(unit_data.icon, input->mpos, vec2(64.f), vec2(0.5f, 0.5f), cvec4(255, 255, 255, 127));
+							draw_image(unit_data.icon, mpos, vec2(64.f), vec2(0.5f, 0.5f), cvec4(255, 255, 255, 127));
 					}
 					if (dragging_target != -1)
-						draw_image(img_target, input->mpos, vec2(32.f), vec2(0.5f, 0.5f), cvec4(255, 255, 255, 127));
+						draw_image(img_target, mpos, vec2(32.f), vec2(0.5f, 0.5f), cvec4(255, 255, 255, 127));
 				}
 					break;
 				}
@@ -3436,7 +3641,7 @@ void Game::on_render()
 			auto& unit = battle_troop.troop->units[j];
 			auto& display = battle_troop.unit_displays[j];
 			auto& unit_data = unit_datas[display.unit_id];
-			show_unit_detail(mpos, display.unit_id, unit.lv, unit.stats[StatHP], unit.HP_MAX, unit.stats[StatATK], unit.stats[StatDEF], unit.stats[StatSA], unit.stats[StatSD], unit.stats[StatSP], 
+			popup_unit_detail(mpos, display.unit_id, unit.lv, unit.stats[StatHP], unit.HP_MAX, unit.stats[StatATK], unit.stats[StatDEF], unit.stats[StatSA], unit.stats[StatSD], unit.stats[StatSP], 
 				unit.type1, unit.type2, unit.skills);
 		}
 
@@ -3653,27 +3858,27 @@ Game game;
 int entry(int argc, char** args)
 {
 	{
-		auto copied = get_clipboard();
-		if (!copied.empty())
-		{
-			std::wstring ret = L"";
-			for (auto line : SUW::split(copied, L'\n'))
-			{
-				auto sp = SUW::split(line, L'\t');
-				if (sp.size() >= 2)
-				{
-					auto lv = std::wstring(sp[0]);
-					auto name = std::wstring(sp[1]);
-					name = get_display_name(name);
-					if (!ret.empty())
-						ret += L",";
-					ret += lv + L':' + name;
-				}
-			}
-			ret = L"skillset=\"" + ret + L"\" ";
-			set_clipboard(ret);
-			return 0;
-		}
+		//auto copied = get_clipboard();
+		//if (!copied.empty())
+		//{
+		//	std::wstring ret = L"";
+		//	for (auto line : SUW::split(copied, L'\n'))
+		//	{
+		//		auto sp = SUW::split(line, L'\t');
+		//		if (sp.size() >= 2)
+		//		{
+		//			auto lv = std::wstring(sp[0]);
+		//			auto name = std::wstring(sp[1]);
+		//			name = get_display_name(name);
+		//			if (!ret.empty())
+		//				ret += L",";
+		//			ret += lv + L':' + name;
+		//		}
+		//	}
+		//	ret = L"skillset=\"" + ret + L"\" ";
+		//	set_clipboard(ret);
+		//	return 0;
+		//}
 	}
 
 	game.init();
