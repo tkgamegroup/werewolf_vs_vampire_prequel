@@ -1301,8 +1301,10 @@ uint battle_action_side = 0;
 std::vector<std::wstring> battle_log;
 uint city_damge = 0;
 float troop_anim_time = 0.f;
-float battle_time = 0.f;
 float anim_remain = 0;
+float anim_time_scaling = 1.f;
+uint exp_multiplier = 1;
+uint city_damage_multiplier = 1;
 
 void new_day()
 {
@@ -1406,7 +1408,7 @@ void step_troop_moving()
 {
 	if (anim_remain > 0.f)
 		return;
-	anim_remain = 0.5f;
+	anim_remain = 0.5f * anim_time_scaling;
 
 	auto no_troops = true;
 	for (auto& lord : lords)
@@ -1615,7 +1617,7 @@ void step_battle()
 {
 	if (anim_remain > 0.f)
 		return;
-	anim_remain = 0.5f;
+	anim_remain = 0.5f * anim_time_scaling;
 
 	if (battle_troops[0].troop && battle_troops[1].troop)
 	{
@@ -1647,6 +1649,7 @@ void step_battle()
 				auto& win_troop_city = lords[win_troop.lord_id].cities[win_troop.city_id];
 				auto& original_win_troop = win_troop_city.troops[win_troop.id];
 				exp /= original_win_troop.units.size();
+				exp *= exp_multiplier;
 				for (auto idx : original_win_troop.units)
 					win_troop_city.units[idx].gain_exp = exp;
 			};
@@ -1704,9 +1707,9 @@ void step_battle()
 				game.tween->add_2d_target(id, nullptr, nullptr, nullptr, &target_unit_display.alpha);
 				game.tween->add_2d_target(id, &target_unit_display.label_pos, nullptr, nullptr, nullptr);
 				game.tween->add_int_target(id, (int*)&target_unit_display.HP);
-				game.tween->scale_to(id, vec2(1.5f), 0.3f);
+				game.tween->scale_to(id, vec2(1.5f), 0.3f * anim_time_scaling);
 				auto target_pos = mix(cast_unit_display.pos, target_unit_display.pos, 0.8f);
-				game.tween->move_to(id, target_pos, 0.3f);
+				game.tween->move_to(id, target_pos, 0.3f * anim_time_scaling);
 				game.tween->set_ease(id, EaseInCubic);
 				auto time_cast = game.tween->get_time(id);
 
@@ -1790,27 +1793,27 @@ void step_battle()
 					if (battle_log.size() > 5)
 						battle_log.erase(battle_log.begin());
 				});
-				game.tween->move_to(id, target_unit_display.init_pos + vec2(0.f, -60.f), 0.4f);
+				game.tween->move_to(id, target_unit_display.init_pos + vec2(0.f, -60.f), 0.4f * anim_time_scaling);
 				game.tween->set_callback(id, [&]() {
 					target_unit_display.label = L"";
 				});
 
 				game.tween->set_target(id, 3);
 				game.tween->set_channel(id, 3, time_cast);
-				game.tween->int_val_to(id, max(0, (int)target.stats[StatHP] - (int)damage), 0.4f);
+				game.tween->int_val_to(id, max(0, (int)target.stats[StatHP] - (int)damage), 0.4f * anim_time_scaling);
 
 				if (target.stats[StatHP] <= 0)
 				{
 					game.tween->set_target(id, 1);
-					game.tween->alpha_to(id, 0.f, 0.4f);
+					game.tween->alpha_to(id, 0.f, 0.4f * anim_time_scaling);
 					game.tween->set_ease(id, EaseInCubic);
 				}
 
 				game.tween->set_target(id, 0U);
 				game.tween->set_channel(id, 0, time_cast);
-				game.tween->move_to(id, cast_unit_display.pos, 0.3f);
+				game.tween->move_to(id, cast_unit_display.pos, 0.3f * anim_time_scaling);
 				game.tween->set_channel(id, 1, time_cast);
-				game.tween->scale_to(id, vec2(1.f), 0.3f);
+				game.tween->scale_to(id, vec2(1.f), 0.3f * anim_time_scaling);
 				anim_remain = game.tween->end(id) + 0.1f;
 			}
 
@@ -1892,7 +1895,7 @@ void step_battle()
 		if (action_troop.action_idx >= action_troop.troop->units.size())
 		{
 			action_troop.action_idx = -1;
-			anim_remain = 1.5f;
+			anim_remain = 1.5f * anim_time_scaling;
 			return;
 		}
 
@@ -1903,15 +1906,16 @@ void step_battle()
 			auto id = game.tween->begin_2d_targets();
 			game.tween->add_2d_target(id, &cast_unit_display.pos, nullptr, &cast_unit_display.scl, nullptr);
 			game.tween->add_2d_target(id, &cast_unit_display.label_pos, nullptr, nullptr, nullptr);
-			game.tween->scale_to(id, vec2(1.1f), 0.2f);
+			game.tween->scale_to(id, vec2(1.1f), 0.2f * anim_time_scaling);
 			auto damage = max(1U, caster.lv / 10);
+			damage *= city_damage_multiplier;
 			game.tween->set_callback(id, [&, damage]() {
 				cast_unit_display.label = wstr(damage);
 				cast_unit_display.label_pos = cast_unit_display.init_pos + vec2(0.f, 5.f);
 			});
-			game.tween->scale_to(id, vec2(1.f), 0.2f);
+			game.tween->scale_to(id, vec2(1.f), 0.2f * anim_time_scaling);
 			game.tween->set_target(id, 1);
-			game.tween->move_to(id, vec2(450.f, 300.f), 0.5f);
+			game.tween->move_to(id, vec2(450.f, 300.f), 0.5f * anim_time_scaling);
 			game.tween->set_callback(id, [&, damage]() {
 				cast_unit_display.label = L"";
 				city_damge += damage;
@@ -2750,7 +2754,7 @@ void Game::on_render()
 		{
 			auto& tile = tiles[city.tile_id];
 			draw_image(img_city, tile.pos, vec2(tile_sz, tile_sz_y));
-			draw_text(wstr(city.loyalty), 20, tile.pos + vec2(tile_sz, tile_sz_y) * 0.5f + vec2(0.f, -10.f), vec2(0.5f), cvec4(0, 255, 0, 255));
+			draw_text(wstr(city.loyalty), 20, tile.pos + vec2(tile_sz, tile_sz_y) * 0.5f + vec2(0.f, -10.f), vec2(0.5f), hsv(lord.id * 60.f, 0.5f, 1.f, 1.f));
 		}
 		for (auto& field : lord.resource_fields)
 		{
@@ -2813,7 +2817,7 @@ void Game::on_render()
 			}
 			if (move_idx != -1)
 				canvas->draw_circle_filled(end_point, 6.f, hsv(lord.id * 60.f, 0.5f, 1.f, 1.f));
-		};
+			};
 		for (auto& city : lord.cities)
 		{
 			for (auto& troop : city.troops)
@@ -2827,15 +2831,18 @@ void Game::on_render()
 			draw_troop_path(troop.path, troop.path_idx);
 	}
 
-	if (input->mpressed(Mouse_Left))
+	if (!hud->is_modal())
 	{
-		for (auto i = 0; i < tiles.size(); i++)
+		if (input->mpressed(Mouse_Left))
 		{
-			auto& tile = tiles[i];
-			if (distance(tile.pos + tile_sz * 0.5f, mpos) < tile_sz * 0.5f)
+			for (auto i = 0; i < tiles.size(); i++)
 			{
-				selected_tile = i;
-				break;
+				auto& tile = tiles[i];
+				if (distance(tile.pos + tile_sz * 0.5f, mpos) < tile_sz * 0.5f)
+				{
+					selected_tile = i;
+					break;
+				}
 			}
 		}
 	}
@@ -3627,6 +3634,65 @@ void Game::on_render()
 	}
 	hud->end();
 
+	static bool show_cheat = false;
+	hud->begin("cheat"_h, vec2(screen_size.x - 300.f, 30.f), vec2(0.f, 0.f), cvec4(0, 0, 0, 255));
+	if (hud->button(L"Cheat"))
+		show_cheat = !show_cheat;
+	if (show_cheat)
+	{
+		static float time_scalings[] = {0.1f, 0.25f, 0.5f, 1.f, 2.f};
+		hud->begin_layout(HudHorizontal);
+		hud->text(std::format(L"Time Scaling: {}", anim_time_scaling));
+		if (hud->button(L"+"))
+		{
+			auto it = std::find(time_scalings, time_scalings + countof(time_scalings), anim_time_scaling);
+			if (it != time_scalings + countof(time_scalings))
+				anim_time_scaling = *(it + 1);
+		}
+		if (hud->button(L"-"))
+		{
+			auto it = std::find(time_scalings, time_scalings + countof(time_scalings), anim_time_scaling);
+			if (it != time_scalings)
+				anim_time_scaling = *(it - 1);
+		}
+		hud->end_layout();
+
+		static uint exp_multipliers[] = {1, 2, 5, 10, 100};
+		hud->begin_layout(HudHorizontal);
+		hud->text(std::format(L"Exp Multiplier: {}", exp_multiplier));
+		if (hud->button(L"+"))
+		{
+			auto it = std::find(exp_multipliers, exp_multipliers + countof(exp_multipliers), exp_multiplier);
+			if (it != exp_multipliers + countof(exp_multipliers))
+				exp_multiplier = *(it + 1);
+		}
+		if (hud->button(L"-"))
+		{
+			auto it = std::find(exp_multipliers, exp_multipliers + countof(exp_multipliers), exp_multiplier);
+			if (it != exp_multipliers)
+				exp_multiplier = *(it - 1);
+		}
+		hud->end_layout();
+
+		static uint city_damage_multipliers[] = { 1, 2, 5, 10, 100 };
+		hud->begin_layout(HudHorizontal);
+		hud->text(std::format(L"City Damage Multiplier: {}", city_damage_multiplier));
+		if (hud->button(L"+"))
+		{
+			auto it = std::find(city_damage_multipliers, city_damage_multipliers + countof(city_damage_multipliers), city_damage_multiplier);
+			if (it != city_damage_multipliers + countof(city_damage_multipliers))
+				city_damage_multiplier = *(it + 1);
+		}
+		if (hud->button(L"-"))
+		{
+			auto it = std::find(city_damage_multipliers, city_damage_multipliers + countof(city_damage_multipliers), city_damage_multiplier);
+			if (it != city_damage_multipliers)
+				city_damage_multiplier = *(it - 1);
+		}
+		hud->end_layout();
+	}
+	hud->end();
+
 	hud->begin("side"_h, vec2(screen_size.x - 100.f, screen_size.y - 300.f), vec2(160.f, 300.f), cvec4(0, 0, 0, 255));
 	if (state == GameDay)
 	{
@@ -3648,8 +3714,11 @@ void Game::on_render()
 		hud->begin_layout(HudVertical, vec2(0.f), vec2(0.f));
 		hud->rect(vec2(700.f, 100.f), hsv(get_lord_id(battle_troops[1]) * 60.f, 0.5f, 0.5f, 1.f));
 		hud->rect(vec2(700.f, 100.f), hsv(get_lord_id(battle_troops[0]) * 60.f, 0.5f, 0.5f, 1.f));
-		for (auto& log : battle_log)
-			hud->text(log, 20);
+		if (battle_troops[0].troop && battle_troops[1].troop)
+		{
+			for (auto& log : battle_log)
+				hud->text(log, 20);
+		}
 		hud->end_layout();
 
 		auto hovered_unit = -1;
@@ -3718,61 +3787,8 @@ void Game::on_render()
 		};
 
 		static Steps step = StepEnd;
-		static std::vector<UnitDisplay> unit_displays;
+		static std::vector<std::vector<UnitDisplay>> unit_displays;
 		static uint city_idx;
-
-		auto setup_show_show_exp = [&]() {
-			auto& city = main_player.cities[city_idx];
-			unit_displays.resize(city.units.size());
-			for (auto i = 0; i < city.units.size(); i++)
-			{
-				auto& unit = city.units[i];
-				auto curr_lv_exp = calc_exp(unit.lv);
-				auto next_lv_exp = calc_exp(unit.lv + 1);
-				auto& display = unit_displays[i];
-				display.id = unit.id;
-				display.old_lv = unit.lv;
-				display.lv = unit.lv;
-				display.lv_exp = unit.exp - curr_lv_exp;
-				display.lv_exp_max = next_lv_exp - curr_lv_exp;
-
-				if (auto gain_exp = unit.gain_exp; gain_exp > 0)
-				{
-					auto lv = unit.lv;
-					auto start_exp = unit.exp;
-					auto end_exp = unit.exp + gain_exp;
-					unit.exp += gain_exp;
-
-					auto id = game.tween->begin_2d_targets();
-					game.tween->add_int_target(id, (int*)&display.lv_exp);
-
-					while (true)
-					{
-						game.tween->set_callback(id, [&, curr_lv_exp, next_lv_exp]() {
-							display.lv_exp_max = next_lv_exp - curr_lv_exp;
-						});
-						auto val = min(end_exp, next_lv_exp) - start_exp;
-						game.tween->int_val_to(id, val, (float)val / (next_lv_exp - curr_lv_exp));
-						if (end_exp < next_lv_exp)
-							break;
-						start_exp += val;
-						lv++;
-						curr_lv_exp = calc_exp(lv);
-						next_lv_exp = calc_exp(lv + 1);
-						game.tween->set_callback(id, [&, lv]() {
-							display.lv_exp = 0;
-							display.lv = lv;
-						});
-
-						unit.lv++;
-					}
-
-					game.tween->end(id);
-				}
-
-				unit.gain_exp = 0;
-			}
-		};
 
 		auto move_step = [&]() {
 			switch (step)
@@ -3781,23 +3797,70 @@ void Game::on_render()
 			{
 				city_idx = 0;
 				step = StepShowExpGain;
-				setup_show_show_exp();
 			}
 				break;
 			case StepShowExpGain:
 				if (city_idx + 1 >= main_player.cities.size())
 					step = StepEnd;
 				else
-				{
 					city_idx++;
-					setup_show_show_exp();
-				}
 				break;
 			}
 		};
 
 		if (show_result)
 		{
+			for (auto i = 0; i < main_player.cities.size(); i++)
+			{
+				auto& city = main_player.cities[i];
+				unit_displays.resize(city.units.size());
+				for (auto j = 0; j < city.units.size(); j++)
+				{
+					auto& unit = city.units[j];
+					auto curr_lv_exp = calc_exp(unit.lv);
+					auto next_lv_exp = calc_exp(unit.lv + 1);
+					auto& display = unit_displays[i][j];
+					display.id = unit.id;
+					display.old_lv = unit.lv;
+					display.lv = unit.lv;
+					display.lv_exp = unit.exp - curr_lv_exp;
+					display.lv_exp_max = next_lv_exp - curr_lv_exp;
+
+					if (auto gain_exp = unit.gain_exp; gain_exp > 0)
+					{
+						auto lv = unit.lv;
+						auto start_exp = unit.exp;
+						auto end_exp = unit.exp + gain_exp;
+
+						auto id = game.tween->begin_2d_targets();
+						game.tween->add_int_target(id, (int*)&display.lv_exp);
+
+						while (true)
+						{
+							game.tween->set_callback(id, [&, curr_lv_exp, next_lv_exp]() {
+								display.lv_exp_max = next_lv_exp - curr_lv_exp;
+							});
+							auto val = min(end_exp, next_lv_exp) - start_exp;
+							game.tween->int_val_to(id, val, (float)val / (next_lv_exp - curr_lv_exp) * anim_time_scaling);
+							if (end_exp < next_lv_exp)
+								break;
+							start_exp += val;
+							lv++;
+							curr_lv_exp = calc_exp(lv);
+							next_lv_exp = calc_exp(lv + 1);
+							game.tween->set_callback(id, [&, lv]() {
+								display.lv_exp = 0;
+								display.lv = lv;
+							});
+						}
+
+						game.tween->end(id);
+					}
+
+					unit.gain_exp = 0;
+				}
+			}
+
 			move_step();
 			show_result = false;
 		}
@@ -3814,7 +3877,7 @@ void Game::on_render()
 				hud->begin_layout(HudVertical);
 				auto& unit = city.units[i];
 				auto& unit_data = unit_datas[unit.id];
-				auto& display = unit_displays[i];
+				auto& display = unit_displays[city_idx][i];
 				if (unit_data.icon)
 					hud->image(vec2(64.f), unit_data.icon);
 				hud->rect(vec2(40.f, 5.f), cvec4(150, 150, 150, 255));
@@ -3857,6 +3920,45 @@ void Game::on_render()
 			hud->end();
 		}
 			break;
+		}
+	}
+
+	for (auto& lord : lords)
+	{
+		for (auto& city : lord.cities)
+		{
+			for (auto& unit : city.units)
+			{
+				auto old_lv = unit.lv;
+				unit.exp += unit.gain_exp;
+				auto next_lv_exp = calc_exp(unit.lv + 1);
+
+				while (true)
+				{
+					if (unit.exp < next_lv_exp)
+						break;
+					unit.lv++;
+					next_lv_exp = calc_exp(unit.lv + 1);
+				}
+
+				if (unit.lv != old_lv)
+				{
+					unit.learn_skills();
+					if (lord.id != main_player.id)
+					{
+						for (auto i = 0; i < 4; i++)
+							unit.skills[i] = -1;
+						auto n = 0;
+						for (auto it = unit.learnt_skills.rbegin(); it != unit.learnt_skills.rend(); it++)
+						{
+							if (n >= 4)
+								break;
+							unit.skills[n] = *it;
+							n++;
+						}
+					}
+				}
+			}
 		}
 	}
 
