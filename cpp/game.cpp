@@ -61,6 +61,20 @@ const wchar_t* get_building_name(BuildingType type)
 	return L"";
 }
 
+const wchar_t* get_building_description(BuildingType type)
+{
+	switch (type)
+	{
+	case BuildingTownCenter: return L"";
+	case BuildingHouse: return L"Increase Gold Production";
+	case BuildingBarracks: return L"";
+	case BuildingPark: return L"Captures Pokemons Every Turn";
+	case BuildingTower: return L"";
+	case BuildingWall: return L"";
+	}
+	return L"";
+}
+
 BuildingType get_building_type_from_name(std::wstring_view name)
 {
 	for (auto i = 0; i < BuildingTypeCount; i++)
@@ -409,6 +423,7 @@ struct UnitInstance
 	uint stats[StatCount];
 	PokemonType type1;
 	PokemonType type2;
+	uint acc;
 	int skills[4] = { -1, -1, -1, -1 };
 	int stat_stage[StatCount] = { 0, 0, 0, 0, 0, 0 };
 
@@ -806,27 +821,27 @@ struct City
 		return -1;
 	}
 
-	void add_capture_ll(uint unit_id, uint exclusive_id, uint lv)
+	void add_capture_ll(uint unit_id, uint exclusive_id, uint lv, uint cost_gold)
 	{
 		auto& unit_data = unit_datas[unit_id];
 		PokemonCapture capture;
 		capture.unit_id = unit_id;
 		capture.exclusive_id = exclusive_id;
 		capture.lv = lv;
-		capture.cost_gold = 100;
+		capture.cost_gold = cost_gold;
 
 		captures.push_back(capture);
 	}
 
-	void add_capture(uint unit_id, uint lv)
+	void add_capture(uint unit_id, uint lv, uint cost_gold)
 	{
-		add_capture_ll(unit_id, 0, lv);
+		add_capture_ll(unit_id, 0, lv, cost_gold);
 	}
 
-	void add_exclusive_captures(const std::vector<uint>& unit_ids, uint exclusive_id, uint lv)
+	void add_exclusive_captures(const std::vector<uint>& unit_ids, uint exclusive_id, uint lv, uint cost_gold)
 	{
 		for (auto unit_id : unit_ids)
-			add_capture_ll(unit_id, exclusive_id, lv);
+			add_capture_ll(unit_id, exclusive_id, lv, cost_gold);
 	}
 
 	void add_unit(uint unit_id, uint lv)
@@ -1076,7 +1091,7 @@ struct Lord
 		city.tile_id = tile_id;
 		city.lord_id = id;
 		city.loyalty = 100;
-		city.production = 1;
+		city.production = 0;
 		city.buildings.resize(building_slots.size());
 		for (auto i = 0; i < building_slots.size(); i++)
 		{
@@ -1087,7 +1102,7 @@ struct Lord
 		}
 		upgrade_building(city, 0, BuildingTownCenter, true);
 
-		city.add_exclusive_captures({ 0, 3, 6 }, "yusanjia"_h, 5);
+		city.add_exclusive_captures({ 0, 3, 6 }, "yusanjia"_h, 5, 200);
 		city.troops.emplace_back().target = tile_id;
 		city.troops.emplace_back();
 
@@ -1228,7 +1243,7 @@ int add_lord(uint tile_id)
 	//lord.resources[ResourceClay] = 800;
 	//lord.resources[ResourceIron] = 800;
 	//lord.resources[ResourceCrop] = 800;
-	lord.resources[ResourceGold] = 500;
+	lord.resources[ResourceGold] = 300;
 	//lord.provide_population = 10;
 	lord.consume_population = 0;
 
@@ -1318,6 +1333,8 @@ void new_day()
 
 		for (auto& city : lord.cities)
 		{
+			city.production += 1;
+
 			for (auto& building : city.buildings)
 			{
 				switch (building.type)
@@ -1337,7 +1354,7 @@ void new_day()
 					{
 						auto& park_data = park_datas[building.lv - 1];
 						for (auto i = 0; i < park_data.capture_num; i++)
-							city.add_capture(weighted_random(park_data.encounter_list), 1);
+							city.add_capture(weighted_random(park_data.encounter_list), 1, 100);
 					}
 				}
 					break;
@@ -1353,8 +1370,62 @@ void new_day()
 
 		for (auto& city : lord.cities)
 		{
-			if (!city.captures.empty())
-				lord.buy_unit(city, linearRand(0, (int)city.captures.size() - 1));
+			while (true)
+			{
+				std::vector<uint> cands;
+				for (auto i = 0; i < building_slots.size(); i++)
+				{
+					auto& slot = building_slots[i];
+					if (slot.type == BuildingTypeCount)
+					{
+						for (int j = BuildingInTownBegin; j <= BuildingInTownEnd; j++)
+						{
+							if (j == BuildingTownCenter)
+								continue;
+							if (auto base_data = get_building_base_data((BuildingType)j, 0); base_data)
+							{
+								auto cost_production = base_data->cost_production;
+								if (cost_production <= city.production)
+									cands.push_back(i * 100 + j);
+							}
+						}
+					}
+					else
+					{
+						auto& building = city.buildings[i];
+						if (auto base_data = get_building_base_data(building.type, building.lv); base_data)
+						{
+							auto cost_production = base_data->cost_production;
+							if (cost_production <= city.production)
+								cands.push_back(i * 100);
+						}
+					}
+				}
+				if (cands.empty())
+					break;
+				auto sel = cands[linearRand(0, (int)cands.size() - 1)];
+				auto i = sel / 100;
+				auto j = sel % 100;
+				auto& slot = building_slots[i];
+				if (slot.type == BuildingTypeCount)
+					lord.upgrade_building(city, i, (BuildingType)j);
+				else
+					lord.upgrade_building(city, i, slot.type);
+			}
+
+			while (true)
+			{
+				std::vector<uint> cands;
+				for (auto i = 0; i < city.captures.size(); i++)
+				{
+					if (city.captures[i].cost_gold <= lord.resources[ResourceGold])
+						cands.push_back(i);
+				}
+				if (cands.empty())
+					break;
+				auto i = cands[linearRand(0, (int)cands.size() - 1)];
+				lord.buy_unit(city, i);
+			}
 
 			if (auto target_city = search_random_hostile_city(lord.id); target_city)
 			{
@@ -2878,7 +2949,7 @@ void Game::on_render()
 
 	auto popup_unit_detail = [&](const vec2& mpos, uint id, uint lv, uint HP, uint HP_MAX, uint ATK, uint DEF, uint SA, uint SD, uint SP, PokemonType type1, PokemonType type2, int* skills) {
 		auto& unit_data = unit_datas[id];
-		hud->begin("popup"_h, mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255), vec2(0.f, mpos.y > 540.f ? 1.f : 0.f));
+		hud->begin("popup"_h, mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255), vec2(0.f, 1.f));
 		hud->begin_layout(HudHorizontal, vec2(0.f), vec2(4.f, 0.f));
 		show_unit_basic(id, lv, HP, HP_MAX, ATK, DEF, SA, SD, SP, type1, type2);
 		if (skills)
@@ -3183,6 +3254,19 @@ void Game::on_render()
 									main_player.upgrade_building(city, selected_building_slot, type);
 							}
 						};
+						auto show_encounter_list = [&](const std::vector<std::pair<uint, uint>>& encounter_list) {
+							hud->begin("popup"_h, mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255), vec2(0.f, 1.f));
+							hud->begin_layout(HudHorizontal);
+							for (auto i = 0; i < encounter_list.size(); i++)
+							{
+								auto& unit_data = unit_datas[encounter_list[i].first];
+								if (unit_data.icon)
+									hud->image(vec2(48.f), unit_data.icon);
+
+							}
+							hud->end_layout();
+							hud->end();
+						};
 						switch (building.type)
 						{
 						case BuildingTownCenter:
@@ -3221,11 +3305,30 @@ void Game::on_render()
 							break;
 						case BuildingPark:
 						{
+							auto hovering_list = -1;
+
 							hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
 							hud->text(std::format(L"Park LV: {}", building.lv));
+							if (building.lv > 0)
+							{
+								auto& data = park_datas[building.lv - 1];
+								hud->text(std::format(L"Current Encounter List: {}", (int)data.encounter_list.size()), 22);
+								if (hud->item_hovered())
+									hovering_list = 0;
+							}
+							auto next_level = park_datas[building.lv];
+							hud->text(std::format(L"Level {} Encounter List: {}", building.lv + 1, (int)next_level.encounter_list.size()), 22);
+							if (hud->item_hovered())
+								hovering_list = 1;
 							show_upgrade_building(building.type);
 							hud->end_layout();
 							hud->stroke_item();
+
+							if (hovering_list != -1)
+							{
+								auto& data = park_datas[building.lv + (hovering_list == 0 ? -1 : 0)];
+								show_encounter_list(data.encounter_list);
+							}
 						}
 							break;
 						case BuildingTower:
@@ -3243,19 +3346,17 @@ void Game::on_render()
 							hud->stroke_item();
 							break;
 						case BuildingTypeCount:
-							hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-							hud->text(std::format(L"Build House"));
-							hud->text(std::format(L"Increase Gold Production"), 20);
-							show_upgrade_building(BuildingHouse);
-							hud->end_layout();
-							hud->stroke_item();
-
-							hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-							hud->text(std::format(L"Build Park"));
-							hud->text(std::format(L"Captures Pokemons Every Turn"), 20);
-							show_upgrade_building(BuildingPark);
-							hud->end_layout();
-							hud->stroke_item();
+							for (int i = BuildingInTownBegin; i <= BuildingInTownEnd; i++)
+							{
+								if (i == BuildingTownCenter)
+									continue;
+								hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+								hud->text(std::format(L"Build {}", get_building_name((BuildingType)i)));
+								hud->text(get_building_description((BuildingType)i), 20);
+								show_upgrade_building((BuildingType)i);
+								hud->end_layout();
+								hud->stroke_item();
+							}
 							break;
 						}
 					}
@@ -3414,7 +3515,7 @@ void Game::on_render()
 
 						if (hovered_skill != -1)
 						{
-							hud->begin("popup"_h, mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255), vec2(0.f, mpos.y > 540.f ? 1.f : 0.f));
+							hud->begin("popup"_h, mpos + vec2(10.f, 4.f), vec2(0.f), cvec4(50, 50, 50, 255), vec2(0.f, 1.f));
 							show_skill(hovered_skill);
 							hud->end();
 						}
