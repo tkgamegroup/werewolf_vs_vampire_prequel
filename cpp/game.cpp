@@ -374,7 +374,7 @@ struct Unit
 	uint exp;
 	int skills[4] = { -1, -1, -1, -1 };
 	std::vector<uint> learnt_skills;
-	uint gain_exp;
+	uint gain_exp = 0;
 
 	bool has_learnt_skill(uint skill_id)
 	{
@@ -1504,6 +1504,7 @@ void step_troop_moving()
 							battle_troop.refresh_display();
 						}
 						battle_action_side = 0;
+						battle_log.clear();
 						return;
 					}
 				}
@@ -3801,7 +3802,49 @@ void Game::on_render()
 				break;
 			case StepShowExpGain:
 				if (city_idx + 1 >= main_player.cities.size())
+				{
 					step = StepEnd;
+
+					for (auto& lord : lords)
+					{
+						for (auto& city : lord.cities)
+						{
+							for (auto& unit : city.units)
+							{
+								auto old_lv = unit.lv;
+								unit.exp += unit.gain_exp;
+								unit.gain_exp = 0;
+								auto next_lv_exp = calc_exp(unit.lv + 1);
+
+								while (true)
+								{
+									if (unit.exp < next_lv_exp)
+										break;
+									unit.lv++;
+									next_lv_exp = calc_exp(unit.lv + 1);
+								}
+
+								if (unit.lv != old_lv)
+								{
+									unit.learn_skills();
+									if (lord.id != main_player.id)
+									{
+										for (auto i = 0; i < 4; i++)
+											unit.skills[i] = -1;
+										auto n = 0;
+										for (auto it = unit.learnt_skills.rbegin(); it != unit.learnt_skills.rend(); it++)
+										{
+											if (n >= 4)
+												break;
+											unit.skills[n] = *it;
+											n++;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
 				else
 					city_idx++;
 				break;
@@ -3816,6 +3859,7 @@ void Game::on_render()
 				unit_displays.resize(city.units.size());
 				for (auto j = 0; j < city.units.size(); j++)
 				{
+					unit_displays[i].resize(city.units.size());
 					auto& unit = city.units[j];
 					auto curr_lv_exp = calc_exp(unit.lv);
 					auto next_lv_exp = calc_exp(unit.lv + 1);
@@ -3856,8 +3900,6 @@ void Game::on_render()
 
 						game.tween->end(id);
 					}
-
-					unit.gain_exp = 0;
 				}
 			}
 
@@ -3869,7 +3911,7 @@ void Game::on_render()
 		{
 		case StepShowExpGain:
 		{
-			hud->begin("show_exp_gain"_h, vec2(100.f, 250.f), vec2(700.f, 250.f), hsv(main_player.id * 60.f, 0.5f, 0.5f, 1.f));
+			hud->begin("show_exp_gain"_h, vec2(100.f, 250.f), vec2(0.f, 0.f), hsv(main_player.id * 60.f, 0.5f, 0.5f, 1.f));
 			auto& city = main_player.cities[city_idx];
 			hud->begin_layout(HudHorizontal);
 			for (auto i = 0; i < city.units.size(); i++)
@@ -3920,45 +3962,6 @@ void Game::on_render()
 			hud->end();
 		}
 			break;
-		}
-	}
-
-	for (auto& lord : lords)
-	{
-		for (auto& city : lord.cities)
-		{
-			for (auto& unit : city.units)
-			{
-				auto old_lv = unit.lv;
-				unit.exp += unit.gain_exp;
-				auto next_lv_exp = calc_exp(unit.lv + 1);
-
-				while (true)
-				{
-					if (unit.exp < next_lv_exp)
-						break;
-					unit.lv++;
-					next_lv_exp = calc_exp(unit.lv + 1);
-				}
-
-				if (unit.lv != old_lv)
-				{
-					unit.learn_skills();
-					if (lord.id != main_player.id)
-					{
-						for (auto i = 0; i < 4; i++)
-							unit.skills[i] = -1;
-						auto n = 0;
-						for (auto it = unit.learnt_skills.rbegin(); it != unit.learnt_skills.rend(); it++)
-						{
-							if (n >= 4)
-								break;
-							unit.skills[n] = *it;
-							n++;
-						}
-					}
-				}
-			}
 		}
 	}
 
