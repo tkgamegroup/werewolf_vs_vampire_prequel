@@ -181,6 +181,8 @@ enum Stat
 	StatSA,
 	StatSD,
 	StatSP,
+	StatACC,
+	StatEVA,
 
 	StatCount
 };
@@ -195,6 +197,8 @@ const wchar_t* get_stat_name(Stat stat)
 	case StatSA: return L"SA";
 	case StatSD: return L"SD";
 	case StatSP: return L"SP";
+	case StatACC: return L"ACC";
+	case StatEVA: return L"EVA";
 	}
 	return L"";
 }
@@ -423,7 +427,6 @@ struct UnitInstance
 	uint stats[StatCount];
 	PokemonType type1;
 	PokemonType type2;
-	uint acc;
 	int skills[4] = { -1, -1, -1, -1 };
 	int stat_stage[StatCount] = { 0, 0, 0, 0, 0, 0 };
 
@@ -481,12 +484,12 @@ float get_stage_modifier(int stage)
 {
 	switch (stage)
 	{
-	case -6: return 25.f / 100.f;
-	case -5: return 28.f / 100.f;
-	case -4: return 33.f / 100.f;
-	case -3: return 40.f / 100.f;
-	case -2: return 50.f / 100.f;
-	case -1: return 66.f / 100.f;
+	case -6: return  25.f / 100.f;
+	case -5: return  28.f / 100.f;
+	case -4: return  33.f / 100.f;
+	case -3: return  40.f / 100.f;
+	case -2: return  50.f / 100.f;
+	case -1: return  66.f / 100.f;
 	case +1: return 150.f / 100.f;
 	case +2: return 200.f / 100.f;
 	case +3: return 250.f / 100.f;
@@ -507,18 +510,34 @@ float get_effectineness(PokemonType skill_type, PokemonType caster_type1, Pokemo
 	return effectiveness;
 }
 
+enum SkillResult
+{
+	SkillHit,
+	SkillMiss,
+	SkillNoEffect
+};
+
 struct StatChange
 {
 	bool changed = false;
 	int stage[StatCount] = { 0, 0, 0, 0, 0, 0 };
 };
 
-bool cast_skill(UnitInstance& caster, UnitInstance& target, uint skill_id, uint& damage, StatChange& caster_stat_changed, StatChange& target_stat_changed)
+SkillResult cast_skill(UnitInstance& caster, UnitInstance& target, uint skill_id, uint& damage, StatChange& caster_stat_changed, StatChange& target_stat_changed)
 {
 	auto& skill_data = skill_datas[skill_id];
 	auto effectiveness = get_effectineness(skill_data.type, caster.type1, caster.type2, target.type1, target.type2);
 	if (effectiveness == 0.f)
-		return false;
+		return SkillNoEffect;
+
+	{
+		auto B = skill_data.acc / 100.f;
+		auto C = get_stage_modifier(caster.stat_stage[StatACC]);
+		auto D = get_stage_modifier(target.stat_stage[StatEVA]);
+		auto A = B * C / D;
+		if (linearRand(0.f, 1.f) < A)
+			return SkillMiss;
+	}
 
 	if (skill_data.power > 0)
 	{
@@ -542,7 +561,7 @@ bool cast_skill(UnitInstance& caster, UnitInstance& target, uint skill_id, uint&
 		}
 	}
 
-	return true;
+	return SkillHit;
 }
 
 cCameraPtr camera;
@@ -1319,6 +1338,7 @@ float troop_anim_time = 0.f;
 float anim_remain = 0;
 float anim_time_scaling = 1.f;
 uint exp_multiplier = 1;
+uint damage_multiplier = 1;
 uint city_damage_multiplier = 1;
 
 void new_day()
@@ -1771,7 +1791,7 @@ void step_battle()
 			StatChange caster_stat_change;
 			StatChange target_stat_change;
 
-			cast_skill(caster, target, skill_id, damage, caster_stat_change, target_stat_change);
+			auto result = cast_skill(caster, target, skill_id, damage, caster_stat_change, target_stat_change);
 
 			{
 				auto id = game.tween->begin_2d_targets();
@@ -1791,6 +1811,16 @@ void step_battle()
 				std::wstring target_label = L"";
 				std::wstring log = L"";
 				log = std::format(L"{} LV{} cast {} to {} LV{}", caster_unit_data.name, caster.lv, skill_data.name, target_unit_data.name, target.lv);
+				if (result == SkillMiss)
+				{
+					target_label = L"Miss";
+					log += L", missed";
+				}
+				if (result == SkillNoEffect)
+				{
+					target_label = L"No Effect";
+					log += L", no effect";
+				}
 				if (damage > 0)
 				{
 					target_label = wstr(damage);
@@ -3776,6 +3806,23 @@ void Game::on_render()
 		}
 		hud->end_layout();
 
+		static uint damage_multipliers[] = { 1, 2, 5, 10, 100 };
+		hud->begin_layout(HudHorizontal);
+		hud->text(std::format(L"City Damage Multiplier: {}", damage_multiplier));
+		if (hud->button(L"+"))
+		{
+			auto it = std::find(damage_multipliers, damage_multipliers + countof(damage_multipliers), damage_multiplier);
+			if (it != damage_multipliers + countof(damage_multipliers))
+				damage_multiplier = *(it + 1);
+		}
+		if (hud->button(L"-"))
+		{
+			auto it = std::find(damage_multipliers, damage_multipliers + countof(damage_multipliers), damage_multiplier);
+			if (it != damage_multipliers)
+				damage_multiplier = *(it - 1);
+		}
+		hud->end_layout();
+
 		static uint city_damage_multipliers[] = { 1, 2, 5, 10, 100 };
 		hud->begin_layout(HudHorizontal);
 		hud->text(std::format(L"City Damage Multiplier: {}", city_damage_multiplier));
@@ -3881,6 +3928,7 @@ void Game::on_render()
 
 		struct UnitDisplay
 		{
+			uint old_id;
 			uint id;
 			uint old_lv;
 			uint lv;
@@ -3927,6 +3975,13 @@ void Game::on_render()
 
 								if (unit.lv != old_lv)
 								{
+									while (true)
+									{
+										auto& unit_data = unit_datas[unit.id];
+										if (unit_data.evolution_lv != 0 && unit.lv >= unit_data.evolution_lv)
+											unit.id = unit.id + 1;
+									}
+
 									unit.learn_skills();
 									if (lord.id != main_player.id)
 									{
@@ -3965,6 +4020,7 @@ void Game::on_render()
 					auto curr_lv_exp = calc_exp(unit.lv);
 					auto next_lv_exp = calc_exp(unit.lv + 1);
 					auto& display = unit_displays[i][j];
+					display.old_id = unit.id;
 					display.id = unit.id;
 					display.old_lv = unit.lv;
 					display.lv = unit.lv;
@@ -3996,6 +4052,9 @@ void Game::on_render()
 							game.tween->set_callback(id, [&, lv]() {
 								display.lv_exp = 0;
 								display.lv = lv;
+								auto& unit_data = unit_datas[display.id];
+								if (unit_data.evolution_lv != 0 && display.lv >= unit_data.evolution_lv)
+									display.id = display.id + 1;
 							});
 						}
 
@@ -4017,10 +4076,11 @@ void Game::on_render()
 			hud->begin_layout(HudHorizontal);
 			for (auto i = 0; i < city.units.size(); i++)
 			{
-				hud->begin_layout(HudVertical);
-				auto& unit = city.units[i];
-				auto& unit_data = unit_datas[unit.id];
 				auto& display = unit_displays[city_idx][i];
+				auto& unit = city.units[i];
+				auto& old_unit_data = unit_datas[display.old_id];
+				auto& unit_data = unit_datas[display.id];
+				hud->begin_layout(HudVertical);
 				if (unit_data.icon)
 					hud->image(vec2(64.f), unit_data.icon);
 				hud->rect(vec2(40.f, 5.f), cvec4(150, 150, 150, 255));
@@ -4030,12 +4090,12 @@ void Game::on_render()
 				hud->text(std::format(L"{}/{}", display.lv_exp, display.lv_exp_max), 20);
 				if (display.lv != display.old_lv)
 				{
-					auto old_hp = calc_hp_stat(unit_data.stats[StatHP], display.old_lv); auto new_hp = calc_hp_stat(unit_data.stats[StatHP], display.lv);
-					auto old_atk = calc_stat(unit_data.stats[StatATK], display.old_lv); auto new_atk = calc_stat(unit_data.stats[StatATK], display.lv);
-					auto old_def = calc_stat(unit_data.stats[StatDEF], display.old_lv); auto new_def = calc_stat(unit_data.stats[StatDEF], display.lv);
-					auto old_sa = calc_stat(unit_data.stats[StatSA], display.old_lv); auto new_sa = calc_stat(unit_data.stats[StatSA], display.lv);
-					auto old_sd = calc_stat(unit_data.stats[StatSD], display.old_lv); auto new_sd = calc_stat(unit_data.stats[StatSD], display.lv);
-					auto old_sp = calc_stat(unit_data.stats[StatSP], display.old_lv); auto new_sp = calc_stat(unit_data.stats[StatSP], display.lv);
+					auto old_hp = calc_hp_stat(old_unit_data.stats[StatHP], display.old_lv); auto new_hp = calc_hp_stat(unit_data.stats[StatHP], display.lv);
+					auto old_atk = calc_stat(old_unit_data.stats[StatATK], display.old_lv); auto new_atk = calc_stat(unit_data.stats[StatATK], display.lv);
+					auto old_def = calc_stat(old_unit_data.stats[StatDEF], display.old_lv); auto new_def = calc_stat(unit_data.stats[StatDEF], display.lv);
+					auto old_sa = calc_stat(old_unit_data.stats[StatSA], display.old_lv); auto new_sa = calc_stat(unit_data.stats[StatSA], display.lv);
+					auto old_sd = calc_stat(old_unit_data.stats[StatSD], display.old_lv); auto new_sd = calc_stat(unit_data.stats[StatSD], display.lv);
+					auto old_sp = calc_stat(old_unit_data.stats[StatSP], display.old_lv); auto new_sp = calc_stat(unit_data.stats[StatSP], display.lv);
 					hud->text(std::format(L"{} -> {}", display.old_lv, display.lv), 20);
 					hud->text(std::format(L"HP +{} -> {}", new_hp - old_hp, new_hp), 20);
 					hud->text(std::format(L"ATK +{} -> {}", new_atk - old_atk, new_atk), 20);
