@@ -535,7 +535,7 @@ SkillResult cast_skill(UnitInstance& caster, UnitInstance& target, uint skill_id
 		auto C = get_stage_modifier(caster.stat_stage[StatACC]);
 		auto D = get_stage_modifier(target.stat_stage[StatEVA]);
 		auto A = B * C / D;
-		if (linearRand(0.f, 1.f) < A)
+		if (linearRand(0.f, 1.f) >= A)
 			return SkillMiss;
 	}
 
@@ -975,7 +975,6 @@ struct BattleTroop
 	TroopInstance* troop;
 	City* city = nullptr; // for damage calc
 	std::vector<UnitDisplay> unit_displays;
-	int action_idx;
 
 	void refresh_display()
 	{
@@ -1252,6 +1251,7 @@ struct Lord
 	}
 };
 std::vector<Lord> lords;
+uint main_player_id = 0;
 
 int add_lord(uint tile_id)
 {
@@ -1329,9 +1329,11 @@ cvec4 hsv(float h, float s, float v, float a)
 }
 
 GameState state = GameInit;
+bool game_over = false;
+bool victory = false;
 bool show_result = false;
 BattleTroop battle_troops[2];
-uint battle_action_side = 0;
+std::vector<int> battle_action_list;
 std::vector<std::wstring> battle_log;
 uint city_damge = 0;
 float troop_anim_time = 0.f;
@@ -1501,6 +1503,22 @@ void step_troop_moving()
 		return;
 	anim_remain = 0.5f * anim_time_scaling;
 
+	for (auto& lord : lords)
+	{
+		for (auto it = lord.cities.begin(); it != lord.cities.end(); )
+		{
+			if (it->loyalty == 0)
+			{
+				auto& tile = tiles[it->tile_id];
+				tile.type = TileField;
+				tile.lord_id = -1;
+				it = lord.cities.erase(it);
+			}
+			else
+				it++;
+		}
+	}
+
 	auto no_troops = true;
 	for (auto& lord : lords)
 	{
@@ -1512,7 +1530,31 @@ void step_troop_moving()
 	}
 	if (no_troops)
 	{
-		show_result = true;
+		if (lords[main_player_id].cities.empty())
+		{
+			game_over = true;
+			victory = false;
+		}
+		else
+		{
+			auto no_opponents = true;
+			for (auto i = 0; i < lords.size(); i++)
+			{
+				if (i != main_player_id)
+				{
+					if (!lords[i].cities.empty())
+						no_opponents = false;
+					break;
+				}
+			}
+			if (no_opponents)
+			{
+				game_over = true;
+				victory = true;
+			}
+		}
+		if (!game_over)
+			show_result = true;
 		new_day();
 		return;
 	}
@@ -1545,17 +1587,14 @@ void step_troop_moving()
 							auto& battle_troop = battle_troops[0];
 							battle_troop.side = 0;
 							battle_troop.troop = &troop;
-							battle_troop.action_idx = 0;
 							battle_troop.refresh_display();
 						}
 						{
 							auto& battle_troop = battle_troops[1];
 							battle_troop.side = 1;
 							battle_troop.troop = &_troop;
-							battle_troop.action_idx = 0;
 							battle_troop.refresh_display();
 						}
-						battle_action_side = 0;
 						battle_log.clear();
 						return;
 					}
@@ -1584,17 +1623,14 @@ void step_troop_moving()
 							auto& battle_troop = battle_troops[0];
 							battle_troop.side = 0;
 							battle_troop.troop = &troop;
-							battle_troop.action_idx = 0;
 							battle_troop.refresh_display();
 						}
 						{
 							auto& battle_troop = battle_troops[1];
 							battle_troop.side = 1;
 							battle_troop.troop = &_troop;
-							battle_troop.action_idx = 0;
 							battle_troop.refresh_display();
 						}
-						battle_action_side = 0;
 						battle_log.clear();
 						return;
 					}
@@ -1622,16 +1658,15 @@ void step_troop_moving()
 							battle_troop.side = 0;
 							battle_troop.troop = nullptr;
 							battle_troop.city = &city;
-							battle_troop.action_idx = 0;
 							battle_troop.unit_displays.clear();
 						}
 						{
 							auto& battle_troop = battle_troops[1];
 							battle_troop.side = 1;
 							battle_troop.troop = &troop;
-							battle_troop.action_idx = 0;
 							battle_troop.refresh_display();
 						}
+						battle_log.clear();
 						break;
 					}
 				}
@@ -1640,69 +1675,6 @@ void step_troop_moving()
 			}
 		}
 	}
-
-	for (auto& lord : lords)
-	{
-		for (auto it = lord.cities.begin(); it != lord.cities.end(); )
-		{
-			if (it->loyalty == 0)
-			{
-				auto& tile = tiles[it->tile_id];
-				tile.type = TileField;
-				tile.lord_id = -1;
-				for (auto it2 = lord.resource_fields.begin(); it2 != lord.resource_fields.end(); )
-				{
-					auto no_nearby_cities = true;
-					auto& tile = tiles[it2->tile_id];
-					if (no_nearby_cities && tile.tile_lt != -1)
-					{
-						auto& _tile = tiles[tile.tile_lt];
-						if (_tile.type == TileCity && _tile.lord_id == lord.id)
-							no_nearby_cities = false;
-					}
-					if (no_nearby_cities && tile.tile_t != -1)
-					{
-						auto& _tile = tiles[tile.tile_t];
-						if (_tile.type == TileCity && _tile.lord_id == lord.id)
-							no_nearby_cities = false;
-					}
-					if (no_nearby_cities && tile.tile_rt != -1)
-					{
-						auto& _tile = tiles[tile.tile_rt];
-						if (_tile.type == TileCity && _tile.lord_id == lord.id)
-							no_nearby_cities = false;
-					}
-					if (no_nearby_cities && tile.tile_lb != -1)
-					{
-						auto& _tile = tiles[tile.tile_lb];
-						if (_tile.type == TileCity && _tile.lord_id == lord.id)
-							no_nearby_cities = false;
-					}
-					if (no_nearby_cities && tile.tile_b != -1)
-					{
-						auto& _tile = tiles[tile.tile_b];
-						if (_tile.type == TileCity && _tile.lord_id == lord.id)
-							no_nearby_cities = false;
-					}
-					if (no_nearby_cities && tile.tile_rb != -1)
-					{
-						auto& _tile = tiles[tile.tile_rb];
-						if (_tile.type == TileCity && _tile.lord_id == lord.id)
-							no_nearby_cities = false;
-					}
-					if (no_nearby_cities)
-					{
-						tile.type = TileField;
-						tile.lord_id = -1;
-					}
-				}
-				it = lord.cities.erase(it);
-			}
-			else
-				it++;
-		}
-	}
-
 }
 
 void step_battle()
@@ -1710,6 +1682,28 @@ void step_battle()
 	if (anim_remain > 0.f)
 		return;
 	anim_remain = 0.5f * anim_time_scaling;
+
+	auto build_action_list = []() {
+		std::vector<std::pair<uint, uint>> list;
+		for (auto i = 0; i < 2; i++)
+		{
+			auto& troop = battle_troops[i];
+			if (troop.troop)
+			{
+				for (auto j = 0; j < troop.troop->units.size(); j++)
+				{
+					auto& unit = troop.troop->units[j];
+					list.emplace_back(i * 100 + j, unit.stats[StatSP]);
+				}
+			}
+		}
+		std::sort(list.begin(), list.end(), [](const auto& a, const auto& b) {
+			return a.second > b.second;
+			});
+		battle_action_list.resize(list.size());
+		for (auto i = 0; i < battle_action_list.size(); i++)
+			battle_action_list[i] = list[i].first;
+	};
 
 	if (battle_troops[0].troop && battle_troops[1].troop)
 	{
@@ -1722,8 +1716,15 @@ void step_battle()
 				auto& unit = units[j];
 				if (unit.stats[StatHP] <= 0)
 				{
-					if (j <= battle_troop.action_idx && battle_troop.action_idx > 0)
-						battle_troop.action_idx--;
+					auto id = i * 100 + j;
+					for (auto it = battle_action_list.begin(); it != battle_action_list.end(); it++)
+					{
+						if (*it == id)
+						{
+							battle_action_list.erase(it);
+							break;
+						}
+					}
 					units.erase(units.begin() + j);
 					j--;
 				}
@@ -1773,14 +1774,20 @@ void step_battle()
 		for (auto i = 0; i < 2; i++)
 			battle_troops[i].refresh_display();
 
-		auto& action_troop = battle_troops[battle_action_side];
-		auto& other_troop = battle_troops[1 - battle_action_side];
-		auto& caster = action_troop.troop->units[action_troop.action_idx];
+		if (battle_action_list.empty())
+			build_action_list();
+
+		auto idx = battle_action_list.front();
+		auto side = idx / 100;
+		idx = idx % 100;
+		auto& action_troop = battle_troops[side];
+		auto& other_troop = battle_troops[1 - side];
+		auto& caster = action_troop.troop->units[idx];
 		auto& caster_unit_data = unit_datas[caster.id];
 		auto target_idx = linearRand(0, (int)other_troop.troop->units.size() - 1);
 		auto& target = other_troop.troop->units[target_idx];
 		auto& target_unit_data = unit_datas[target.id];
-		auto& cast_unit_display = action_troop.unit_displays[action_troop.action_idx];
+		auto& cast_unit_display = action_troop.unit_displays[idx];
 		auto& target_unit_display = other_troop.unit_displays[target_idx];
 
 		if (auto skill_id = caster.choose_skill(target); skill_id != -1)
@@ -1792,6 +1799,8 @@ void step_battle()
 			StatChange target_stat_change;
 
 			auto result = cast_skill(caster, target, skill_id, damage, caster_stat_change, target_stat_change);
+			if (damage_multiplier > 1)
+				damage *= damage_multiplier;
 
 			{
 				auto id = game.tween->begin_2d_targets();
@@ -1957,16 +1966,13 @@ void step_battle()
 			}
 		}
 
-		action_troop.action_idx++;
-		if (action_troop.action_idx >= action_troop.troop->units.size())
-			action_troop.action_idx = 0;
-		battle_action_side = 1 - battle_action_side;
+		battle_action_list.erase(battle_action_list.begin());
 	}
 	else if (battle_troops[0].city)
 	{
 		auto& action_troop = battle_troops[1];
 
-		if (action_troop.action_idx == -1)
+		if (battle_action_list.size() == 1 && battle_action_list[0] == -1)
 		{
 			{
 				auto troop = battle_troops[1].troop;
@@ -1994,15 +2000,12 @@ void step_battle()
 			return;
 		}
 
-		if (action_troop.action_idx >= action_troop.troop->units.size())
-		{
-			action_troop.action_idx = -1;
-			anim_remain = 1.5f * anim_time_scaling;
-			return;
-		}
+		if (battle_action_list.empty())
+			build_action_list();
 
-		auto& caster = action_troop.troop->units[action_troop.action_idx];
-		auto& cast_unit_display = action_troop.unit_displays[action_troop.action_idx];
+		auto idx = battle_action_list.front() % 100;
+		auto& caster = action_troop.troop->units[idx];
+		auto& cast_unit_display = action_troop.unit_displays[idx];
 
 		{
 			auto id = game.tween->begin_2d_targets();
@@ -2025,7 +2028,13 @@ void step_battle()
 			game.tween->end(id);
 		}
 
-		action_troop.action_idx++;
+		battle_action_list.erase(battle_action_list.begin());
+		if (battle_action_list.empty())
+		{
+			battle_action_list = {-1};
+			anim_remain = 1.5f * anim_time_scaling;
+			return;
+		}
 	}
 }
 
@@ -2827,7 +2836,7 @@ void Game::on_render()
 	if (lords.empty())
 		return;
 
-	auto& main_player = lords.front();
+	auto& main_player = lords[main_player_id];
 	auto screen_size = canvas->size;
 	auto mpos = input->mpos;
 
@@ -2856,7 +2865,7 @@ void Game::on_render()
 		{
 			auto& tile = tiles[city.tile_id];
 			draw_image(img_city, tile.pos, vec2(tile_sz, tile_sz_y));
-			draw_text(wstr(city.loyalty), 20, tile.pos + vec2(tile_sz, tile_sz_y) * 0.5f + vec2(0.f, -10.f), vec2(0.5f), hsv(lord.id * 60.f, 0.5f, 1.f, 1.f));
+			draw_text(wstr(city.loyalty), 20, tile.pos + vec2(tile_sz, tile_sz_y) * 0.5f + vec2(0.f, -20.f), vec2(0.5f), hsv(lord.id * 60.f, 0.5f, 1.f, 1.f));
 		}
 		for (auto& field : lord.resource_fields)
 		{
@@ -3071,8 +3080,8 @@ void Game::on_render()
 
 			hud->begin_layout(HudVertical, vec2(0.f), vec2(0.f, 8.f));
 			hud->begin_layout(HudHorizontal);
-			hud->text(lord.id == main_player.id ? L"Your City" : L"Enemy's City");
-			if (lord.id == main_player.id)
+			hud->text(lord.id == main_player_id ? L"Your City" : L"Enemy's City");
+			if (lord.id == main_player_id)
 			{
 				hud->image(vec2(24.f, 24.f), img_production);
 				hud->text(wstr(city.production));
@@ -3126,7 +3135,7 @@ void Game::on_render()
 				}
 			}
 			hud->end_layout();
-			if (lord.id == main_player.id)
+			if (lord.id == main_player_id)
 			{
 				switch (tab)
 				{
@@ -3885,7 +3894,7 @@ void Game::on_render()
 				if (unit_data.icon)
 					draw_image(unit_data.icon, display.pos, sz, vec2(0.5f, 1.f), cvec4(255, 255, 255, 255 * display.alpha));
 				Rect rect;
-				rect.a = display.pos - sz * vec2(0.5f, 1.f);
+				rect.a = display.init_pos - sz * vec2(0.5f, 1.f);
 				rect.b = rect.a + sz;
 				if (rect.contains(mpos))
 					hovered_unit = i * 100 + j;
@@ -3918,6 +3927,71 @@ void Game::on_render()
 
 		hud->end();
 	}
+
+	hud->begin("top"_h, vec2(0.f, 0.f), vec2(screen_size.x, 20.f), cvec4(0, 0, 0, 255));
+	//hud->begin_layout(HudHorizontal, vec2(0.f), vec2(16.f, 0.f));
+	//hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	//hud->image(vec2(27.f, 18.f), img_resources[ResourceWood]);
+	//hud->text(std::format(L"{} +{}", main_player.resources[ResourceWood], main_player.get_production(ResourceWood)), 24);
+	//hud->end_layout();
+	//if (hud->item_hovered())
+	//{
+	//	hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
+	//	hud->text(std::format(L"Wood: {}\nProduction: {}", main_player.resources[ResourceWood], main_player.get_production(ResourceWood)));
+	//	hud->end();
+	//}
+	//hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	//hud->image(vec2(27.f, 18.f), img_resources[ResourceClay]);
+	//hud->text(std::format(L"{} +{}", main_player.resources[ResourceClay], main_player.get_production(ResourceClay)), 24);
+	//hud->end_layout();
+	//if (hud->item_hovered())
+	//{
+	//	hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
+	//	hud->text(std::format(L"Clay: {}\nProduction: {}", main_player.resources[ResourceClay], main_player.get_production(ResourceClay)));
+	//	hud->end();
+	//}
+	//hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	//hud->image(vec2(27.f, 18.f), img_resources[ResourceIron]);
+	//hud->text(std::format(L"{} +{}", main_player.resources[ResourceIron], main_player.get_production(ResourceIron)), 24);
+	//hud->end_layout();
+	//if (hud->item_hovered())
+	//{
+	//	hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
+	//	hud->text(std::format(L"Iron: {}\nProduction: {}", main_player.resources[ResourceIron], main_player.get_production(ResourceIron)));
+	//	hud->end();
+	//}
+	//hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	//hud->image(vec2(27.f, 18.f), img_resources[ResourceCrop]);
+	//hud->text(std::format(L"{} +{}", main_player.resources[ResourceCrop], main_player.get_production(ResourceCrop)), 24);
+	//hud->end_layout();
+	//if (hud->item_hovered())
+	//{
+	//	hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
+	//	hud->text(std::format(L"Crop: {}\nProduction: {}", main_player.resources[ResourceCrop], main_player.get_production(ResourceCrop)));
+	//	hud->end();
+	//}
+	hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	hud->image(vec2(27.f, 18.f), img_resources[ResourceGold]);
+	hud->text(std::format(L"{}", main_player.resources[ResourceGold]), 24);
+	hud->end_layout();
+	if (hud->item_hovered())
+	{
+		hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
+		hud->text(std::format(L"Gold: {}", main_player.resources[ResourceGold]));
+		hud->end();
+	}
+	//hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
+	//hud->image(vec2(27.f, 18.f), img_population);
+	//hud->text(std::format(L"{}/{}", main_player.consume_population, main_player.provide_population), 24);
+	//hud->end_layout();
+	//if (hud->item_hovered())
+	//{
+	//	hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
+	//	hud->text(std::format(L"Population\nProvide: {}\nConsume: {}", main_player.provide_population, main_player.consume_population));
+	//	hud->end();
+	//}
+	//hud->end_layout();
+	hud->end();
 
 	{
 		enum Steps
@@ -3980,10 +4054,12 @@ void Game::on_render()
 										auto& unit_data = unit_datas[unit.id];
 										if (unit_data.evolution_lv != 0 && unit.lv >= unit_data.evolution_lv)
 											unit.id = unit.id + 1;
+										else
+											break;
 									}
 
 									unit.learn_skills();
-									if (lord.id != main_player.id)
+									if (lord.id != main_player_id)
 									{
 										for (auto i = 0; i < 4; i++)
 											unit.skills[i] = -1;
@@ -4071,7 +4147,7 @@ void Game::on_render()
 		{
 		case StepShowExpGain:
 		{
-			hud->begin("show_exp_gain"_h, vec2(100.f, 250.f), vec2(0.f, 0.f), hsv(main_player.id * 60.f, 0.5f, 0.5f, 1.f));
+			hud->begin("show_exp_gain"_h, vec2(100.f, 250.f), vec2(0.f, 0.f), hsv(main_player_id * 60.f, 0.5f, 0.5f, 1.f), vec2(0.f), {}, vec4(0.f), true);
 			auto& city = main_player.cities[city_idx];
 			hud->begin_layout(HudHorizontal);
 			for (auto i = 0; i < city.units.size(); i++)
@@ -4126,70 +4202,16 @@ void Game::on_render()
 		}
 	}
 
-	hud->begin("top"_h, vec2(0.f, 0.f), vec2(screen_size.x, 20.f), cvec4(0, 0, 0, 255));
-	//hud->begin_layout(HudHorizontal, vec2(0.f), vec2(16.f, 0.f));
-	//hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-	//hud->image(vec2(27.f, 18.f), img_resources[ResourceWood]);
-	//hud->text(std::format(L"{} +{}", main_player.resources[ResourceWood], main_player.get_production(ResourceWood)), 24);
-	//hud->end_layout();
-	//if (hud->item_hovered())
-	//{
-	//	hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
-	//	hud->text(std::format(L"Wood: {}\nProduction: {}", main_player.resources[ResourceWood], main_player.get_production(ResourceWood)));
-	//	hud->end();
-	//}
-	//hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-	//hud->image(vec2(27.f, 18.f), img_resources[ResourceClay]);
-	//hud->text(std::format(L"{} +{}", main_player.resources[ResourceClay], main_player.get_production(ResourceClay)), 24);
-	//hud->end_layout();
-	//if (hud->item_hovered())
-	//{
-	//	hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
-	//	hud->text(std::format(L"Clay: {}\nProduction: {}", main_player.resources[ResourceClay], main_player.get_production(ResourceClay)));
-	//	hud->end();
-	//}
-	//hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-	//hud->image(vec2(27.f, 18.f), img_resources[ResourceIron]);
-	//hud->text(std::format(L"{} +{}", main_player.resources[ResourceIron], main_player.get_production(ResourceIron)), 24);
-	//hud->end_layout();
-	//if (hud->item_hovered())
-	//{
-	//	hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
-	//	hud->text(std::format(L"Iron: {}\nProduction: {}", main_player.resources[ResourceIron], main_player.get_production(ResourceIron)));
-	//	hud->end();
-	//}
-	//hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-	//hud->image(vec2(27.f, 18.f), img_resources[ResourceCrop]);
-	//hud->text(std::format(L"{} +{}", main_player.resources[ResourceCrop], main_player.get_production(ResourceCrop)), 24);
-	//hud->end_layout();
-	//if (hud->item_hovered())
-	//{
-	//	hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
-	//	hud->text(std::format(L"Crop: {}\nProduction: {}", main_player.resources[ResourceCrop], main_player.get_production(ResourceCrop)));
-	//	hud->end();
-	//}
-	hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-	hud->image(vec2(27.f, 18.f), img_resources[ResourceGold]);
-	hud->text(std::format(L"{}", main_player.resources[ResourceGold]), 24);
-	hud->end_layout();
-	if (hud->item_hovered())
+	if (game_over)
 	{
-		hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
-		hud->text(std::format(L"Gold: {}", main_player.resources[ResourceGold]));
+		hud->begin("game_over"_h, vec2(100.f, 250.f), vec2(0.f, 0.f), hsv(0.f, 0.5f, 0.5f, 1.f), vec2(0.f), {}, vec4(0.f), true);
+		hud->text(L"Game Over");
+		if (victory)
+			hud->text(L"Victory, you defeated all opponents");
+		else
+			hud->text(L"Failed, you have lost all cities");
 		hud->end();
 	}
-	//hud->begin_layout(HudHorizontal, vec2(0.f), vec2(3.f, 0.f));
-	//hud->image(vec2(27.f, 18.f), img_population);
-	//hud->text(std::format(L"{}/{}", main_player.consume_population, main_player.provide_population), 24);
-	//hud->end_layout();
-	//if (hud->item_hovered())
-	//{
-	//	hud->begin("popup"_h, mpos + vec2(0.f, 10.f));
-	//	hud->text(std::format(L"Population\nProvide: {}\nConsume: {}", main_player.provide_population, main_player.consume_population));
-	//	hud->end();
-	//}
-	//hud->end_layout();
-	hud->end();
 
 	UniverseApplication::on_render();
 }
