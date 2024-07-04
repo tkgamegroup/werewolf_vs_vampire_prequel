@@ -37,7 +37,7 @@ enum BuildingType
 {
 	BuildingTownCenter,
 	BuildingHouse,
-	BuildingBarracks,
+	//BuildingBarracks,
 	BuildingPark,
 	BuildingTower,
 	BuildingWall,
@@ -53,7 +53,7 @@ const wchar_t* get_building_name(BuildingType type)
 	{
 	case BuildingTownCenter: return L"Town Center";
 	case BuildingHouse: return L"House";
-	case BuildingBarracks: return L"Barracks";
+	//case BuildingBarracks: return L"Barracks";
 	case BuildingPark: return L"Park";
 	case BuildingTower: return L"Tower";
 	case BuildingWall: return L"Wall";
@@ -67,7 +67,7 @@ const wchar_t* get_building_description(BuildingType type)
 	{
 	case BuildingTownCenter: return L"";
 	case BuildingHouse: return L"Increase Gold Production";
-	case BuildingBarracks: return L"";
+	//case BuildingBarracks: return L"";
 	case BuildingPark: return L"Captures Pokemons Every Turn";
 	case BuildingTower: return L"";
 	case BuildingWall: return L"";
@@ -248,6 +248,10 @@ enum EffectType
 	EffectUserStat,
 	EffectOpponentStat,
 	EffectStatus,
+	EffectRecover,
+	EffectLifeSteal,
+	EffectMultipleHits,
+	EffectDamageDebuff,
 
 	EffectTypeCount
 };
@@ -273,38 +277,39 @@ EffectType get_effect_type_from_name(std::wstring_view name)
 	return EffectTypeCount;
 }
 
-enum Status
+enum AbnormalStatus
 {
-	StatusBurn,
-	StatusFreeze,
-	StatusParalysis,
-	StatusPoison,
-	StatusSleep,
+	AbnormalStatusNone,
+	AbnormalStatusBurn,
+	AbnormalStatusFreeze,
+	AbnormalStatusParalysis,
+	AbnormalStatusPoison,
+	AbnormalStatusSleep,
 
-	StatusCount
+	AbnormalStatusCount
 };
 
-const wchar_t* get_status_name(Status status)
+const wchar_t* get_status_name(AbnormalStatus status)
 {
 	switch (status)
 	{
-	case StatusBurn: return L"Burn";
-	case StatusFreeze: return L"Freeze";
-	case StatusParalysis: return L"Paralysis";
-	case StatusPoison: return L"Poison";
-	case StatusSleep: return L"Sleep";
+	case AbnormalStatusBurn: return L"Burn";
+	case AbnormalStatusFreeze: return L"Freeze";
+	case AbnormalStatusParalysis: return L"Paralysis";
+	case AbnormalStatusPoison: return L"Poison";
+	case AbnormalStatusSleep: return L"Sleep";
 	}
 	return L"";
 }
 
-Status get_status_from_name(std::wstring_view name)
+AbnormalStatus get_status_from_name(std::wstring_view name)
 {
-	for (auto i = 0; i < StatusCount; i++)
+	for (auto i = 0; i < AbnormalStatusCount; i++)
 	{
-		if (name == get_status_name((Status)i))
-			return (Status)i;
+		if (name == get_status_name((AbnormalStatus)i))
+			return (AbnormalStatus)i;
 	}
-	return StatusCount;
+	return AbnormalStatusCount;
 }
 
 struct SkillEffect
@@ -320,7 +325,7 @@ struct SkillEffect
 		}stat;
 		struct
 		{
-			Status id;
+			AbnormalStatus id;
 			float prob;
 		}status;
 	}data;
@@ -429,6 +434,7 @@ struct UnitInstance
 	PokemonType type2;
 	int skills[4] = { -1, -1, -1, -1 };
 	int stat_stage[StatCount] = { 0, 0, 0, 0, 0, 0 };
+	AbnormalStatus abnormal_status = AbnormalStatusNone;
 
 	void init(Unit& unit)
 	{
@@ -551,12 +557,18 @@ SkillResult cast_skill(UnitInstance& caster, UnitInstance& target, uint skill_id
 		switch (effect.type)
 		{
 		case EffectUserStat:
-			caster_stat_changed.changed = true;
-			caster_stat_changed.stage[effect.data.stat.id] += effect.data.stat.state;
+			if (linearRand(0.f, 1.f) <= effect.data.stat.prob)
+			{
+				caster_stat_changed.changed = true;
+				caster_stat_changed.stage[effect.data.stat.id] += effect.data.stat.state;
+			}
 			break;
 		case EffectOpponentStat:
-			target_stat_changed.changed = true;
-			target_stat_changed.stage[effect.data.stat.id] += effect.data.stat.state;
+			if (linearRand(0.f, 1.f) <= effect.data.stat.prob)
+			{
+				target_stat_changed.changed = true;
+				target_stat_changed.stage[effect.data.stat.id] += effect.data.stat.state;
+			}
 			break;
 		}
 	}
@@ -774,10 +786,10 @@ BuildingBaseData* get_building_base_data(BuildingType type, uint lv)
 		if (house_datas.size() > lv)
 			ret = &house_datas[lv];
 		break;
-	case BuildingBarracks:
-		if (park_datas.size() > lv)
-			ret = &park_datas[lv];
-		break;
+	//case BuildingBarracks:
+	//	if (park_datas.size() > lv)
+	//		ret = &park_datas[lv];
+	//	break;
 	case BuildingPark:
 		if (barracks_datas.size() > lv)
 			ret = &barracks_datas[lv];
@@ -1108,7 +1120,7 @@ struct Lord
 		city.id = cities.size();
 		city.tile_id = tile_id;
 		city.lord_id = id;
-		city.loyalty = 100;
+		city.loyalty = 30;
 		city.production = 0;
 		city.buildings.resize(building_slots.size());
 		for (auto i = 0; i < building_slots.size(); i++)
@@ -1595,6 +1607,7 @@ void step_troop_moving()
 							battle_troop.troop = &_troop;
 							battle_troop.refresh_display();
 						}
+						battle_action_list.clear();
 						battle_log.clear();
 						return;
 					}
@@ -1631,6 +1644,7 @@ void step_troop_moving()
 							battle_troop.troop = &_troop;
 							battle_troop.refresh_display();
 						}
+						battle_action_list.clear();
 						battle_log.clear();
 						return;
 					}
@@ -1666,6 +1680,7 @@ void step_troop_moving()
 							battle_troop.troop = &troop;
 							battle_troop.refresh_display();
 						}
+						battle_action_list.clear();
 						battle_log.clear();
 						break;
 					}
@@ -1699,7 +1714,7 @@ void step_battle()
 		}
 		std::sort(list.begin(), list.end(), [](const auto& a, const auto& b) {
 			return a.second > b.second;
-			});
+		});
 		battle_action_list.resize(list.size());
 		for (auto i = 0; i < battle_action_list.size(); i++)
 			battle_action_list[i] = list[i].first;
@@ -2063,7 +2078,7 @@ void Game::init()
 	img_ground = graphics::Image::get(L"assets/ground.png");
 	imgs_building[BuildingTownCenter] = graphics::Image::get(L"assets/town_center.png");
 	imgs_building[BuildingHouse] = graphics::Image::get(L"assets/house.png");
-	imgs_building[BuildingBarracks] = graphics::Image::get(L"assets/barracks.png");
+	//imgs_building[BuildingBarracks] = graphics::Image::get(L"assets/barracks.png");
 	imgs_building[BuildingPark] = graphics::Image::get(L"assets/park.png");
 	imgs_building[BuildingTower] = graphics::Image::get(L"assets/tower.png");
 	imgs_building[BuildingWall] = graphics::Image::get(L"assets/wall.png");
@@ -2958,15 +2973,21 @@ void Game::on_render()
 		}
 	}
 
+	auto show_pokemon_type = [&](PokemonType type) {
+		hud->push_style_color(HudStyleColorTextBg, get_pokemon_type_color(type));
+		hud->text(get_pokemon_type_name(type), 20);
+		hud->pop_style_color(HudStyleColorTextBg);
+	};
+
 	auto show_unit_basic = [&](uint id, uint lv, uint HP, uint HP_MAX, uint ATK, uint DEF, uint SA, uint SD, uint SP, PokemonType type1, PokemonType type2) {
 		auto& unit_data = unit_datas[id];
 		hud->begin_layout(HudVertical);
 		hud->text(std::format(L"{} LV {}", unit_data.name, lv));
 		hud->begin_layout(HudHorizontal);
 		if (unit_data.type1 != PokemonTypeCount)
-			hud->text(get_pokemon_type_name(unit_data.type1), 20, get_pokemon_type_color(unit_data.type1));
+			show_pokemon_type(unit_data.type1);
 		if (unit_data.type2 != PokemonTypeCount)
-			hud->text(get_pokemon_type_name(unit_data.type2), 20, get_pokemon_type_color(unit_data.type2));
+			show_pokemon_type(unit_data.type2);
 		hud->end_layout();
 		if (HP_MAX == 0)
 			hud->text(std::format(L"HP {}\nATK {}\nDEF {}\nSA {}\nSD {}\nSP {}", HP, ATK, DEF, SA, SD, SP), 20);
@@ -2979,7 +3000,7 @@ void Game::on_render()
 		auto& skill_data = skill_datas[id];
 		hud->begin_layout(HudVertical);
 		hud->text(skill_data.name);
-		hud->text(get_pokemon_type_name(skill_data.type), 20, get_pokemon_type_color(skill_data.type));
+		show_pokemon_type(skill_data.type);
 		if (skill_data.power > 0)
 			hud->text(std::format(L"Power {}", skill_data.power));
 		hud->text(skill_data.effect_text, 18);
@@ -3333,15 +3354,15 @@ void Game::on_render()
 							hud->stroke_item();
 						}
 							break;
-						case BuildingBarracks:
-						{
-							hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
-							hud->text(std::format(L"Barracks LV: {}", building.lv));
-							show_upgrade_building(building.type);
-							hud->end_layout();
-							hud->stroke_item();
-						}
-							break;
+						//case BuildingBarracks:
+						//{
+						//	hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+						//	hud->text(std::format(L"Barracks LV: {}", building.lv));
+						//	show_upgrade_building(building.type);
+						//	hud->end_layout();
+						//	hud->stroke_item();
+						//}
+						//	break;
 						case BuildingPark:
 						{
 							auto hovering_list = -1;
@@ -3776,9 +3797,26 @@ void Game::on_render()
 	hud->end();
 
 	static bool show_cheat = false;
-	hud->begin("cheat"_h, vec2(screen_size.x - 300.f, 30.f), vec2(0.f, 0.f), cvec4(0, 0, 0, 255));
+	hud->begin("top-right"_h, vec2(screen_size.x - 300.f, 30.f), vec2(0.f, 0.f), cvec4(0, 0, 0, 255));
+	hud->begin_layout(HudHorizontal);
 	if (hud->button(L"Cheat"))
 		show_cheat = !show_cheat;
+	if (hud->button(L"Save"))
+	{
+		pugi::xml_document doc;
+		auto doc_root = doc.append_child("save");
+		auto n_lords = doc_root.append_child("lords");
+		for (auto& lord : lords)
+		{
+			auto n_lord = n_lords.append_child("lord");
+		}
+
+		auto filename = Path::get(L"1.save");
+		doc.save_file(filename.c_str());
+	}
+	if (hud->button(L"Load"))
+		;
+	hud->end_layout();
 	if (show_cheat)
 	{
 		static float time_scalings[] = {0.1f, 0.25f, 0.5f, 1.f, 2.f};
