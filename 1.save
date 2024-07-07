@@ -1,0 +1,301 @@
+<?xml version="1.0"?>
+<save>
+	<lords>
+		<lord gold="100">
+			<cities>
+				<city tile_id="123" loyalty="27" production="0">
+					<buildings>
+						<building slot="0" type="0" lv="1" />
+						<building slot="1" type="2" lv="3" />
+						<building slot="2" type="6" lv="0" />
+						<building slot="3" type="6" lv="0" />
+						<building slot="4" type="6" lv="0" />
+						<building slot="5" type="6" lv="0" />
+						<building slot="6" type="6" lv="0" />
+						<building slot="7" type="6" lv="0" />
+						<building slot="8" type="6" lv="0" />
+						<building slot="9" type="1" lv="2" />
+						<building slot="10" type="3" lv="5" />
+						<building slot="11" type="6" lv="0" />
+						<building slot="12" type="6" lv="0" />
+						<building slot="13" type="4" lv="0" />
+						<building slot="14" type="5" lv="0" />
+					</buildings>
+					<captures />
+					<units>
+						<unit id="3" lv="13" exp="2059">
+							<skills>
+								<skill v="39" />
+								<skill v="111" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="52" />
+								<skill v="111" />
+								<skill v="39" />
+							</learnt_skills>
+						</unit>
+						<unit id="15" lv="6" exp="182">
+							<skills>
+								<skill v="55" />
+								<skill v="-1" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="55" />
+							</learnt_skills>
+						</unit>
+						<unit id="40" lv="6" exp="182">
+							<skills>
+								<skill v="0" />
+								<skill v="-1" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="0" />
+							</learnt_skills>
+						</unit>
+						<unit id="15" lv="6" exp="182">
+							<skills>
+								<skill v="55" />
+								<skill v="-1" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="55" />
+							</learnt_skills>
+						</unit>
+						<unit id="18" lv="5" exp="165">
+							<skills>
+								<skill v="144" />
+								<skill v="143" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="143" />
+								<skill v="144" />
+							</learnt_skills>
+						</unit>
+						<unit id="40" lv="5" exp="165">
+							<skills>
+								<skill v="0" />
+								<skill v="-1" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="0" />
+							</learnt_skills>
+						</unit>
+						<unit id="68" lv="5" exp="151">
+							<skills>
+								<skill v="157" />
+								<skill v="53" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="53" />
+								<skill v="157" />
+							</learnt_skills>
+						</unit>
+						<unit id="68" lv="5" exp="140">
+							<skills>
+								<skill v="157" />
+								<skill v="53" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="53" />
+								<skill v="157" />
+							</learnt_skills>
+						</unit>
+						<unit id="68" lv="5" exp="100">
+							<skills>
+								<skill v="157" />
+								<skill v="53" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="53" />
+								<skill v="157" />
+							</learnt_skills>
+						</unit>
+						<unit id="9" lv="5" exp="100">
+							<skills>
+								<skill v="143" />
+								<skill v="133" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="133" />
+								<skill v="143" />
+							</learnt_skills>
+						</unit>
+						<unit id="9" lv="5" exp="100">
+							<skills>
+								<skill v="143" />
+								<skill v="133" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="133" />
+								<skill v="143" />
+							</learnt_skills>
+						</unit>
+					</units>
+					<troops>
+						<troop target="123">
+							<units />
+						</troop>
+						<troop target="43">
+							<units>
+								<unit v="1" />
+								<unit v="3" />
+								<unit v="2" />
+								<unit v="5" />
+								<unit v="4" />
+								<unit v="6" />
+								<unit v="7" />
+								<unit v="0" />
+								<unit v="8" />
+								<unit v="10" />
+								<unit v="9" />
+							</units>
+						</troop>
+					</troops>
+				</city>
+			</cities>
+		</lord>
+		<lord gold="1400">
+			<cities>
+				<city tile_id="43" loyalty="8" production="0">
+					<buildings>
+						<building slot="0" type="0" lv="1" />
+						<building slot="1" type="3" lv="1" />
+						<building slot="2" type="3" lv="1" />
+						<building slot="3" type="6" lv="0" />
+						<building slot="4" type="2" lv="1" />
+						<building slot="5" type="6" lv="0" />
+						<building slot="6" type="1" lv="1" />
+						<building slot="7" type="3" lv="1" />
+						<building slot="8" type="6" lv="0" />
+						<building slot="9" type="1" lv="1" />
+						<building slot="10" type="6" lv="0" />
+						<building slot="11" type="1" lv="1" />
+						<building slot="12" type="3" lv="3" />
+						<building slot="13" type="4" lv="0" />
+						<building slot="14" type="5" lv="0" />
+					</buildings>
+					<captures />
+					<units>
+						<unit id="6" lv="5" exp="100">
+							<skills>
+								<skill v="144" />
+								<skill v="143" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="143" />
+								<skill v="144" />
+							</learnt_skills>
+						</unit>
+						<unit id="15" lv="5" exp="100">
+							<skills>
+								<skill v="55" />
+								<skill v="-1" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="55" />
+							</learnt_skills>
+						</unit>
+						<unit id="15" lv="5" exp="100">
+							<skills>
+								<skill v="55" />
+								<skill v="-1" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="55" />
+							</learnt_skills>
+						</unit>
+						<unit id="15" lv="5" exp="100">
+							<skills>
+								<skill v="55" />
+								<skill v="-1" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="55" />
+							</learnt_skills>
+						</unit>
+						<unit id="40" lv="5" exp="100">
+							<skills>
+								<skill v="0" />
+								<skill v="-1" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="0" />
+							</learnt_skills>
+						</unit>
+						<unit id="18" lv="5" exp="100">
+							<skills>
+								<skill v="144" />
+								<skill v="143" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="143" />
+								<skill v="144" />
+							</learnt_skills>
+						</unit>
+						<unit id="15" lv="5" exp="100">
+							<skills>
+								<skill v="55" />
+								<skill v="-1" />
+								<skill v="-1" />
+								<skill v="-1" />
+							</skills>
+							<learnt_skills>
+								<skill v="55" />
+							</learnt_skills>
+						</unit>
+					</units>
+					<troops>
+						<troop target="43">
+							<units />
+						</troop>
+						<troop target="123">
+							<units>
+								<unit v="0" />
+								<unit v="1" />
+								<unit v="2" />
+								<unit v="3" />
+								<unit v="4" />
+								<unit v="5" />
+								<unit v="6" />
+							</units>
+						</troop>
+					</troops>
+				</city>
+			</cities>
+		</lord>
+	</lords>
+</save>

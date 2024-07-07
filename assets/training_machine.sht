@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<sheet name="building">
+	<columns>
+		<column type="D@uint" name="cost_production" />
+		<column type="D@uint" name="exp" />
+	</columns>
+	<rows>
+		<row cost_production="1" exp="100" />
+		<row cost_production="1" exp="200" />
+		<row cost_production="1" exp="300" />
+		<row cost_production="1" exp="400" />
+		<row cost_production="1" exp="500" />
+	</rows>
+</sheet>

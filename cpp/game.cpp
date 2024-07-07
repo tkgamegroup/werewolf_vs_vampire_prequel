@@ -5,6 +5,17 @@
 #include <flame/foundation/system.h>
 #include <flame/graphics/canvas.h>
 
+template <class T>
+bool has(const std::vector<T>& list, T v)
+{
+	for (auto _v : list)
+	{
+		if (_v == v)
+			return true;
+	}
+	return false;
+}
+
 enum TileType
 {
 	TileField,
@@ -39,12 +50,13 @@ enum BuildingType
 	BuildingHouse,
 	//BuildingBarracks,
 	BuildingPark,
+	BuildingTrainingMachine,
 	BuildingTower,
 	BuildingWall,
 
 	BuildingTypeCount,
 	BuildingInTownBegin = BuildingTownCenter,
-	BuildingInTownEnd = BuildingPark,
+	BuildingInTownEnd = BuildingTrainingMachine,
 };
 
 const wchar_t* get_building_name(BuildingType type)
@@ -55,6 +67,7 @@ const wchar_t* get_building_name(BuildingType type)
 	case BuildingHouse: return L"House";
 	//case BuildingBarracks: return L"Barracks";
 	case BuildingPark: return L"Park";
+	case BuildingTrainingMachine: return L"Training Machine";
 	case BuildingTower: return L"Tower";
 	case BuildingWall: return L"Wall";
 	}
@@ -69,6 +82,7 @@ const wchar_t* get_building_description(BuildingType type)
 	case BuildingHouse: return L"Increase Gold Production";
 	//case BuildingBarracks: return L"";
 	case BuildingPark: return L"Captures Pokemons Every Turn";
+	case BuildingTrainingMachine: return L"Training Pokemons\nEach Machine will train one \npokemon in the city with the \norder of from highest to lowest \nlevel of the machines";
 	case BuildingTower: return L"";
 	case BuildingWall: return L"";
 	}
@@ -399,16 +413,6 @@ struct Unit
 	std::vector<uint> learnt_skills;
 	uint gain_exp = 0;
 
-	bool has_learnt_skill(uint skill_id)
-	{
-		for (auto id : learnt_skills)
-		{
-			if (id == skill_id)
-				return true;
-		}
-		return false;
-	}
-
 	void learn_skills()
 	{
 		auto& unit_data = unit_datas[id];
@@ -416,7 +420,7 @@ struct Unit
 		{
 			if (s.first <= lv)
 			{
-				if (!has_learnt_skill(s.second))
+				if (!has(learnt_skills, s.second))
 					learnt_skills.push_back(s.second);
 			}
 		}
@@ -620,9 +624,9 @@ void draw_text(std::wstring_view text, uint font_size, const vec2& pos, const ve
 		auto sz = canvas->calc_text_size(nullptr, font_size, text);
 		p -= pivot * sz;
 	}
-	canvas->draw_text(nullptr, font_size, p, text, color);
 	if (shadow_offset.x != 0.f || shadow_offset.y != 0.f)
 		canvas->draw_text(nullptr, font_size, p + shadow_offset, text, shadow_color);
+	canvas->draw_text(nullptr, font_size, p, text, color);
 }
 
 auto tile_cx = 24U;
@@ -735,7 +739,7 @@ struct BuildingBaseData
 		cost_crop = sht->get_as<uint>(row, "cost_crop"_h);
 		cost_gold = sht->get_as<uint>(row, "cost_gold"_h);
 		cost_population = sht->get_as<uint>(row, "cost_population"_h);
-		cost_production = 1;
+		cost_production = sht->get_as<uint>(row, "cost_production"_h);
 	}
 };
 
@@ -763,6 +767,12 @@ struct ParkData : BuildingBaseData
 };
 std::vector<ParkData> park_datas;
 
+struct TrainingMachineData : BuildingBaseData
+{
+	uint exp;
+};
+std::vector<TrainingMachineData> training_machine_datas;
+
 struct TowerData : BuildingBaseData
 {
 };
@@ -787,12 +797,16 @@ BuildingBaseData* get_building_base_data(BuildingType type, uint lv)
 			ret = &house_datas[lv];
 		break;
 	//case BuildingBarracks:
-	//	if (park_datas.size() > lv)
-	//		ret = &park_datas[lv];
+	//	if (barracks_datas.size() > lv)
+	//		ret = &barracks_datas[lv];
 	//	break;
 	case BuildingPark:
-		if (barracks_datas.size() > lv)
-			ret = &barracks_datas[lv];
+		if (park_datas.size() > lv)
+			ret = &park_datas[lv];
+		break;
+	case BuildingTrainingMachine:
+		if (training_machine_datas.size() > lv)
+			ret = &training_machine_datas[lv];
 		break;
 	case BuildingTower:
 		if (tower_datas.size() > lv)
@@ -815,8 +829,8 @@ struct Building
 
 struct Troop
 {
-	std::vector<uint>	units;		// indices
 	uint				target = 0;	// tile id
+	std::vector<uint>	units;		// indices
 	std::vector<uint>	path;
 };
 
@@ -1010,7 +1024,6 @@ struct BattleTroop
 struct Lord
 {
 	uint id;
-	bool dead = false;
 
 	uint resources[ResourceTypeCount];
 	uint provide_population;
@@ -1132,9 +1145,8 @@ struct Lord
 		}
 		upgrade_building(city, 0, BuildingTownCenter, true);
 
-		city.add_exclusive_captures({ 0, 3, 6 }, "yusanjia"_h, 5, 200);
+		city.add_exclusive_captures({ 0, 3, 6 }, "heros"_h, 5, 200);
 		city.troops.emplace_back().target = tile_id;
-		city.troops.emplace_back();
 
 		auto& tile = tiles[tile_id];
 		tile.type = TileCity;
@@ -1369,6 +1381,8 @@ void new_day()
 		{
 			city.production += 1;
 
+			std::vector<uint> training_exps;
+
 			for (auto& building : city.buildings)
 			{
 				switch (building.type)
@@ -1388,11 +1402,32 @@ void new_day()
 					{
 						auto& park_data = park_datas[building.lv - 1];
 						for (auto i = 0; i < park_data.capture_num; i++)
-							city.add_capture(weighted_random(park_data.encounter_list), 1, 100);
+							city.add_capture(weighted_random(park_data.encounter_list), 5, 100);
+					}
+				}
+					break;
+				case BuildingTrainingMachine:
+				{
+					if (building.lv > 0)
+					{
+						auto& machine_data = training_machine_datas[building.lv - 1];
+						training_exps.push_back(machine_data.exp);
 					}
 				}
 					break;
 				}
+			}
+
+			std::sort(training_exps.begin(), training_exps.end(), [](const auto& a, const auto& b) {
+				return a > b;
+			});
+
+			auto& city_units = city.troops.front().units;
+			auto n = min((int)training_exps.size(), (int)city_units.size());
+			for (auto i = 0; i < n; i++)
+			{
+				auto& unit = city.units[city_units[i]];
+				unit.gain_exp += training_exps[i];
 			}
 		}
 	}
@@ -1406,7 +1441,21 @@ void new_day()
 		{
 			while (true)
 			{
-				std::vector<uint> cands;
+				std::vector<std::pair<uint, uint>> cands;
+				auto get_weight = [&](BuildingType type) {
+					auto ret = 1;
+					switch (type)
+					{
+					case BuildingHouse:
+						if (lord.resources[ResourceGold] < 100)
+							ret = 100;
+						break;
+					case BuildingTrainingMachine:
+						ret = 0;
+						break;
+					}
+					return ret;
+				};
 				for (auto i = 0; i < building_slots.size(); i++)
 				{
 					auto& slot = building_slots[i];
@@ -1420,7 +1469,7 @@ void new_day()
 							{
 								auto cost_production = base_data->cost_production;
 								if (cost_production <= city.production)
-									cands.push_back(i * 100 + j);
+									cands.emplace_back(i * 100 + j, get_weight((BuildingType)j));
 							}
 						}
 					}
@@ -1431,13 +1480,13 @@ void new_day()
 						{
 							auto cost_production = base_data->cost_production;
 							if (cost_production <= city.production)
-								cands.push_back(i * 100);
+								cands.emplace_back(i * 100, get_weight(building.type));
 						}
 					}
 				}
 				if (cands.empty())
 					break;
-				auto sel = cands[linearRand(0, (int)cands.size() - 1)];
+				auto sel = weighted_random(cands);
 				auto i = sel / 100;
 				auto j = sel % 100;
 				auto& slot = building_slots[i];
@@ -1463,6 +1512,9 @@ void new_day()
 
 			if (auto target_city = search_random_hostile_city(lord.id); target_city)
 			{
+				city.troops.front().units.clear();
+				city.troops.resize(2);
+
 				auto& troop = city.troops[1];
 				troop.units.clear();
 				for (auto i = 0; i < city.units.size(); i++)
@@ -1486,6 +1538,7 @@ void start_battle()
 			city.captures.clear();
 			for (auto& unit : city.units)
 				unit.gain_exp = 0;
+
 			for (auto i = 1; i < city.troops.size(); i++)
 			{
 				auto& troop = city.troops[i];
@@ -1731,14 +1784,24 @@ void step_battle()
 				auto& unit = units[j];
 				if (unit.stats[StatHP] <= 0)
 				{
-					auto id = i * 100 + j;
-					for (auto it = battle_action_list.begin(); it != battle_action_list.end(); it++)
+					for (auto it = battle_action_list.begin(); it != battle_action_list.end(); )
 					{
-						if (*it == id)
+						auto v = *it;
+						if (v / 100 == i)
 						{
-							battle_action_list.erase(it);
-							break;
+							v = v % 100;
+							if (v == j)
+								it = battle_action_list.erase(it);
+							else if (v > j)
+							{
+								*it = i * 100 + (v - 1);
+								it++;
+							}
+							else
+								it++;
 						}
+						else
+							it++;
 					}
 					units.erase(units.begin() + j);
 					j--;
@@ -1759,7 +1822,7 @@ void step_battle()
 				exp /= original_win_troop.units.size();
 				exp *= exp_multiplier;
 				for (auto idx : original_win_troop.units)
-					win_troop_city.units[idx].gain_exp = exp;
+					win_troop_city.units[idx].gain_exp += exp;
 			};
 			if (battle_troops[0].troop->units.empty() && !battle_troops[1].troop->units.empty())
 				calc_exp_for_troop(*battle_troops[1].troop, *battle_troops[0].troop);
@@ -2002,6 +2065,17 @@ void step_battle()
 				}
 			}
 
+			{
+				// each unit that attacked the enemy city will level up
+				auto& troop = *battle_troops[1].troop;
+				auto& city = lords[troop.lord_id].cities[troop.city_id];
+				for (auto idx : city.troops[troop.id].units)
+				{
+					auto& unit = city.units[idx];
+					unit.gain_exp += calc_exp(unit.lv + 1);;
+				}
+			}
+
 			auto& city = *battle_troops[0].city;
 			if (city.loyalty > city_damge)
 				city.loyalty -= city_damge;
@@ -2016,7 +2090,12 @@ void step_battle()
 		}
 
 		if (battle_action_list.empty())
-			build_action_list();
+		{
+			auto& troop = battle_troops[1];
+			battle_action_list.resize(troop.troop->units.size());
+			for (auto i = 0; i < battle_action_list.size(); i++)
+				battle_action_list[i] = i;
+		}
 
 		auto idx = battle_action_list.front() % 100;
 		auto& caster = action_troop.troop->units[idx];
@@ -2761,6 +2840,17 @@ void Game::init()
 			park_datas.push_back(data);
 		}
 	}
+	if (auto sht = Sheet::get(L"assets/training_machine.sht"); sht)
+	{
+		for (auto i = 0; i < sht->rows.size(); i++)
+		{
+			TrainingMachineData data;
+			auto& row = sht->rows[i];
+			data.read(row, sht);
+			data.exp = sht->get_as<uint>(row, "exp"_h);
+			training_machine_datas.push_back(data);
+		}
+	}
 	if (auto sht = Sheet::get(L"assets/tower.sht"); sht)
 	{
 		for (auto i = 0; i < sht->rows.size(); i++)
@@ -2880,7 +2970,7 @@ void Game::on_render()
 		{
 			auto& tile = tiles[city.tile_id];
 			draw_image(img_city, tile.pos, vec2(tile_sz, tile_sz_y));
-			draw_text(wstr(city.loyalty), 20, tile.pos + vec2(tile_sz, tile_sz_y) * 0.5f + vec2(0.f, -20.f), vec2(0.5f), hsv(lord.id * 60.f, 0.5f, 1.f, 1.f));
+			draw_text(wstr(city.loyalty), 20, tile.pos + vec2(tile_sz, tile_sz_y) * 0.5f + vec2(0.f, -20.f), vec2(0.5f), hsv(lord.id * 60.f, 0.5f, 1.f, 1.f), vec2(1.f), cvec4(0, 0, 0, 255));
 		}
 		for (auto& field : lord.resource_fields)
 		{
@@ -3265,7 +3355,7 @@ void Game::on_render()
 						auto col = cvec4(255);
 						if (hovering_slot == i)
 							col = cvec4(col.r / 2, col.g / 2, col.b / 2, 255);
-						if (slot.type == BuildingTypeCount || city.get_building_lv(slot.type, i) == 0)
+						if (city.get_building_lv(slot.type, i) == 0)
 							col = cvec4(col.r / 2, col.g / 2, col.b / 2, 255);
 						if (slot.type != BuildingTypeCount)
 						{
@@ -3346,9 +3436,12 @@ void Game::on_render()
 								hud->text(std::format(L"Current Gold Production: {}", data.gold_production), 22);
 								//hud->text(std::format(L"Current Provide Population: {}", data.provide_population), 22);
 							}
-							auto next_level = house_datas[building.lv];
-							hud->text(std::format(L"Level {} Gold Production: {}", building.lv + 1, next_level.gold_production), 22);
-							//hud->text(std::format(L"Level {} Provide Population: {}", building.lv + 1, next_level.provide_population), 22);
+							if (building.lv < house_datas.size())
+							{
+								auto next_level = house_datas[building.lv];
+								hud->text(std::format(L"Level {} Gold Production: {}", building.lv + 1, next_level.gold_production), 22);
+								//hud->text(std::format(L"Level {} Provide Population: {}", building.lv + 1, next_level.provide_population), 22);
+							}
 							show_upgrade_building(building.type);
 							hud->end_layout();
 							hud->stroke_item();
@@ -3376,10 +3469,13 @@ void Game::on_render()
 								if (hud->item_hovered())
 									hovering_list = 0;
 							}
-							auto next_level = park_datas[building.lv];
-							hud->text(std::format(L"Level {} Encounter List: {}", building.lv + 1, (int)next_level.encounter_list.size()), 22);
-							if (hud->item_hovered())
-								hovering_list = 1;
+							if (building.lv < park_datas.size())
+							{
+								auto next_level = park_datas[building.lv];
+								hud->text(std::format(L"Level {} Encounter List: {}", building.lv + 1, (int)next_level.encounter_list.size()), 22);
+								if (hud->item_hovered())
+									hovering_list = 1;
+							}
 							show_upgrade_building(building.type);
 							hud->end_layout();
 							hud->stroke_item();
@@ -3390,6 +3486,23 @@ void Game::on_render()
 								show_encounter_list(data.encounter_list);
 							}
 						}
+							break;
+						case BuildingTrainingMachine:
+							hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
+							hud->text(std::format(L"Training Machine LV: {}", building.lv));
+							if (building.lv > 0)
+							{
+								auto& data = training_machine_datas[building.lv - 1];
+								hud->text(std::format(L"Current Exp: {}", data.exp), 22);
+							}
+							if (building.lv < training_machine_datas.size())
+							{
+								auto next_level = training_machine_datas[building.lv];
+								hud->text(std::format(L"Level {} Exp: {}", building.lv + 1, next_level.exp), 22);
+							}
+							show_upgrade_building(building.type);
+							hud->end_layout();
+							hud->stroke_item();
 							break;
 						case BuildingTower:
 							hud->begin_layout(HudVertical, vec2(220.f, bottom_pannel_height - 48.f));
@@ -3468,6 +3581,7 @@ void Game::on_render()
 				{
 					static uint selected_unit = 0;
 					static int dragging_skill = -1;
+					auto hovered_unit = -1;
 					auto hovered_skill = -1;
 					if (selected_unit >= city.units.size())
 						selected_unit = 0;
@@ -3483,6 +3597,8 @@ void Game::on_render()
 						{
 							if (hud->image_button(vec2(size), unit_data.icon))
 								selected_unit = i;
+							if (hud->item_hovered())
+								hovered_unit = i;
 						}
 					}
 					hud->end_layout();
@@ -3572,6 +3688,15 @@ void Game::on_render()
 						}
 						hud->end_layout();
 						hud->end_layout();
+
+						if (hovered_unit != -1)
+						{
+							auto& unit = city.units[hovered_unit];
+							auto& unit_data = unit_datas[unit.id];
+							popup_unit_detail(mpos, unit.id, unit.lv, calc_hp_stat(unit_data.stats[StatHP], unit.lv), 0,
+								calc_stat(unit_data.stats[StatATK], unit.lv), calc_stat(unit_data.stats[StatDEF], unit.lv), calc_stat(unit_data.stats[StatSA], unit.lv),
+								calc_stat(unit_data.stats[StatSD], unit.lv), calc_stat(unit_data.stats[StatSP], unit.lv), unit_data.type1, unit_data.type2, unit.skills);
+						}
 
 						if (hovered_skill != -1)
 						{
@@ -3696,8 +3821,11 @@ void Game::on_render()
 						show_troop(i);
 					if (hud->button(L"New"))
 					{
-						auto& troop = city.troops.emplace_back();
-						troop.target = city.tile_id;
+						if (auto target_city = search_random_hostile_city(lord.id); target_city)
+						{
+							auto& troop = city.troops.emplace_back();
+							city.set_troop_target(troop, target_city->tile_id);
+						}
 					}
 
 					if (hovered_unit != -1)
@@ -3809,13 +3937,141 @@ void Game::on_render()
 		for (auto& lord : lords)
 		{
 			auto n_lord = n_lords.append_child("lord");
+			n_lord.append_attribute("gold").set_value(lord.resources[ResourceGold]);
+			auto n_cities = n_lord.append_child("cities");
+			for (auto& city : lord.cities)
+			{
+				auto n_city = n_cities.append_child("city");
+				n_city.append_attribute("tile_id").set_value(city.tile_id);
+				n_city.append_attribute("loyalty").set_value(city.loyalty);
+				n_city.append_attribute("production").set_value(city.production);
+				auto n_buildings = n_city.append_child("buildings");
+				for (auto& building : city.buildings)
+				{
+					auto n_building = n_buildings.append_child("building");
+					n_building.append_attribute("slot").set_value(building.slot);
+					n_building.append_attribute("type").set_value(building.type);
+					n_building.append_attribute("lv").set_value(building.lv);
+				}
+				auto n_captures = n_city.append_child("captures");
+				for (auto& capture : city.captures)
+				{
+					auto n_capture = n_captures.append_child("capture");
+					n_capture.append_attribute("unit_id").set_value(capture.unit_id);
+					n_capture.append_attribute("exclusive_id").set_value(capture.exclusive_id);
+					n_capture.append_attribute("lv").set_value(capture.lv);
+					n_capture.append_attribute("cost_gold").set_value(capture.cost_gold);
+				}
+				auto n_units = n_city.append_child("units");
+				for (auto& unit : city.units)
+				{
+					auto n_unit = n_units.append_child("unit");
+					n_unit.append_attribute("id").set_value(unit.id);
+					n_unit.append_attribute("lv").set_value(unit.lv);
+					n_unit.append_attribute("exp").set_value(unit.exp);
+					auto n_skills = n_unit.append_child("skills");
+					for (auto i = 0; i < 4; i++)
+						n_skills.append_child("skill").append_attribute("v").set_value(unit.skills[i]);
+					auto n_learnt_skills = n_unit.append_child("learnt_skills");
+					for (auto i = 0; i < unit.learnt_skills.size(); i++)
+						n_learnt_skills.append_child("skill").append_attribute("v").set_value(unit.learnt_skills[i]);
+				}
+				auto n_troops = n_city.append_child("troops");
+				for (auto& troop : city.troops)
+				{
+					auto n_troop = n_troops.append_child("troop");
+					n_troop.append_attribute("target").set_value(troop.target);
+					auto n_units = n_troop.append_child("units");
+					for (auto i = 0; i < troop.units.size(); i++)
+						n_units.append_child("unit").append_attribute("v").set_value(troop.units[i]);
+				}
+			}
 		}
 
-		auto filename = Path::get(L"1.save");
+		auto filename = std::filesystem::path(L"1.save");
 		doc.save_file(filename.c_str());
 	}
 	if (hud->button(L"Load"))
-		;
+	{
+		if (state == GameDay)
+		{
+			pugi::xml_document doc;
+			pugi::xml_node doc_root;
+
+			auto filename = std::filesystem::path(L"1.save");
+			if (std::filesystem::exists(filename))
+			{
+				if (doc.load_file(filename.c_str()) && (doc_root = doc.first_child()).name() == std::string("save"))
+				{
+					lords.clear();
+					for (auto& tile : tiles)
+					{
+						tile.type = TileField;
+						tile.lord_id = -1;
+					}
+
+					auto lord_id = 0;
+					for (auto n_lord : doc_root.child("lords"))
+					{
+						auto& lord = lords.emplace_back();
+						lord.id = lord_id;
+						lord.resources[ResourceGold] = n_lord.attribute("gold").as_uint();
+
+						for (auto n_city : n_lord.child("cities"))
+						{
+							auto tile_id = n_city.attribute("tile_id").as_uint();
+							lord.build_city(tile_id);
+							auto& city = lord.cities.back();
+							city.loyalty = n_city.attribute("loyalty").as_uint();
+							city.production = n_city.attribute("production").as_uint();
+
+							city.buildings.clear();
+							for (auto n_building : n_city.child("buildings"))
+							{
+								auto& building = city.buildings.emplace_back();
+								building.slot = n_building.attribute("slot").as_uint();
+								building.type = (BuildingType)n_building.attribute("type").as_uint();
+								building.lv = n_building.attribute("lv").as_uint();
+							}
+							city.captures.clear();
+							for (auto n_capture : n_city.child("captures"))
+							{
+								auto& capture = city.captures.emplace_back();
+								capture.unit_id = n_capture.attribute("unit_id").as_uint();
+								capture.exclusive_id = n_capture.attribute("exclusive_id").as_uint();
+								capture.lv = n_capture.attribute("lv").as_uint();
+								capture.cost_gold = n_capture.attribute("cost_gold").as_uint();
+							}
+							city.units.clear();
+							for (auto n_unit : n_city.child("units"))
+							{
+								auto& unit = city.units.emplace_back();
+								unit.id = n_unit.attribute("id").as_uint();
+								unit.lv = n_unit.attribute("lv").as_uint();
+								unit.exp = n_unit.attribute("exp").as_uint();
+								auto i = 0;
+								for (auto n_skill : n_unit.child("skills"))
+									unit.skills[i++] = n_skill.attribute("v").as_int();
+								for (auto n_skill : n_unit.child("learnt_skills"))
+									unit.learnt_skills.push_back(n_skill.attribute("v").as_uint());
+							}
+							city.troops.clear();
+							for (auto n_troop : n_city.child("troops"))
+							{
+								auto& troop = city.troops.emplace_back();
+								troop.target = n_troop.attribute("target").as_uint();
+								for (auto n_unit : n_troop.child("units"))
+									troop.units.push_back(n_unit.attribute("v").as_uint());
+								city.set_troop_target(troop, troop.target);
+							}
+						}
+
+						lord_id++;
+					}
+				}
+			}
+		}
+	}
 	hud->end_layout();
 	if (show_cheat)
 	{
@@ -3908,8 +4164,8 @@ void Game::on_render()
 		hud->begin("battle"_h, vec2(100.f, 150.f), vec2(0.f), cvec4(0, 0, 0, 255), vec2(0.f), {}, vec4(0.f), true);
 
 		hud->begin_layout(HudVertical, vec2(0.f), vec2(0.f));
-		hud->rect(vec2(700.f, 100.f), hsv(get_lord_id(battle_troops[1]) * 60.f, 0.5f, 0.5f, 1.f));
-		hud->rect(vec2(700.f, 100.f), hsv(get_lord_id(battle_troops[0]) * 60.f, 0.5f, 0.5f, 1.f));
+		hud->rect(vec2(750.f, 100.f), hsv(get_lord_id(battle_troops[1]) * 60.f, 0.5f, 0.5f, 1.f));
+		hud->rect(vec2(750.f, 100.f), hsv(get_lord_id(battle_troops[0]) * 60.f, 0.5f, 0.5f, 1.f));
 		if (battle_troops[0].troop && battle_troops[1].troop)
 		{
 			for (auto& log : battle_log)
@@ -3943,12 +4199,12 @@ void Game::on_render()
 					draw_text(std::format(L"{}/{}", display.HP, unit.HP_MAX), 20, display.init_pos + vec2(0.f, 8.f), vec2(0.5f, 1.f));
 				}
 				if (!display.label.empty())
-					draw_text(display.label, 20, display.label_pos, vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
+					draw_text(display.label, 20, display.label_pos, vec2(0.5f, 0.f), cvec4(255, 255, 255, 255), vec2(1.f), cvec4(0, 0, 0, 255));
 			}
 		}
 
 		if (city_damge > 0)
-			draw_text(wstr(city_damge), 20, vec2(450.f, 300.f), vec2(0.5f, 0.f), cvec4(0, 0, 0, 255), -vec2(1.f), cvec4(255));
+			draw_text(wstr(city_damge), 20, vec2(450.f, 300.f), vec2(0.5f, 0.f), cvec4(255, 255, 255, 255), vec2(1.f), cvec4(0, 0, 0, 255));
 
 		if (hovered_unit != -1)
 		{
@@ -4046,23 +4302,21 @@ void Game::on_render()
 			uint lv;
 			uint lv_exp;
 			uint lv_exp_max;
+			std::vector<uint> learnt_skills;
 		};
 
 		static Steps step = StepEnd;
 		static std::vector<std::vector<UnitDisplay>> unit_displays;
-		static uint city_idx;
 
 		auto move_step = [&]() {
 			switch (step)
 			{
 			case StepEnd:
-			{
-				city_idx = 0;
 				step = StepShowExpGain;
-			}
 				break;
 			case StepShowExpGain:
-				if (city_idx + 1 >= main_player.cities.size())
+				unit_displays.erase(unit_displays.begin());
+				if (unit_displays.empty())
 				{
 					step = StepEnd;
 
@@ -4115,18 +4369,16 @@ void Game::on_render()
 						}
 					}
 				}
-				else
-					city_idx++;
 				break;
 			}
 		};
 
 		if (show_result)
 		{
+			unit_displays.resize(main_player.cities.size());
 			for (auto i = 0; i < main_player.cities.size(); i++)
 			{
 				auto& city = main_player.cities[i];
-				unit_displays.resize(city.units.size());
 				for (auto j = 0; j < city.units.size(); j++)
 				{
 					unit_displays[i].resize(city.units.size());
@@ -4140,6 +4392,7 @@ void Game::on_render()
 					display.lv = unit.lv;
 					display.lv_exp = unit.exp - curr_lv_exp;
 					display.lv_exp_max = next_lv_exp - curr_lv_exp;
+					display.learnt_skills = unit.learnt_skills;
 
 					if (auto gain_exp = unit.gain_exp; gain_exp > 0)
 					{
@@ -4186,12 +4439,12 @@ void Game::on_render()
 		case StepShowExpGain:
 		{
 			hud->begin("show_exp_gain"_h, vec2(100.f, 250.f), vec2(0.f, 0.f), hsv(main_player_id * 60.f, 0.5f, 0.5f, 1.f), vec2(0.f), {}, vec4(0.f), true);
-			auto& city = main_player.cities[city_idx];
-			hud->begin_layout(HudHorizontal);
-			for (auto i = 0; i < city.units.size(); i++)
+			hud->text(L"Exp Gain:");
+			hud->begin_layout(HudHorizontal, vec2(0.f), vec2(8.f, 0.f));
+			auto& displays = unit_displays.front();
+			for (auto i = 0; i < displays.size(); i++)
 			{
-				auto& display = unit_displays[city_idx][i];
-				auto& unit = city.units[i];
+				auto& display = displays[i];
 				auto& old_unit_data = unit_datas[display.old_id];
 				auto& unit_data = unit_datas[display.id];
 				hud->begin_layout(HudVertical);
@@ -4221,7 +4474,7 @@ void Game::on_render()
 					{
 						if (s.first > display.old_lv && s.first <= display.lv)
 						{
-							if (!unit.has_learnt_skill(s.second))
+							if (!has(display.learnt_skills, s.second))
 							{
 								auto& skill_data = skill_datas[s.second];
 								hud->text(std::format(L"New Skill: {}", skill_data.name), 20);

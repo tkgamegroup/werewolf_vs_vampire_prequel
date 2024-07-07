@@ -7,12 +7,14 @@
 		<column type="D@uint" name="cost_crop" />
 		<column type="D@uint" name="cost_gold" />
 		<column type="D@uint" name="cost_population" />
+		<column type="D@uint" name="cost_production" />
+		<column type="D@uint" name="provide_production" />
 	</columns>
 	<rows>
-		<row cost_wood="590" cost_clay="460" cost_iron="350" cost_crop="180" cost_gold="3320" cost_population="1" />
-		<row cost_wood="740" cost_clay="590" cost_iron="450" cost_crop="230" cost_gold="4340" cost_population="1" />
-		<row cost_wood="950" cost_clay="755" cost_iron="575" cost_crop="295" cost_gold="5540" cost_population="1" />
-		<row cost_wood="1215" cost_clay="965" cost_iron="735" cost_crop="375" cost_gold="10930" cost_population="1" />
-		<row cost_wood="1555" cost_clay="1235" cost_iron="940" cost_crop="485" cost_gold="122540" cost_population="1" />
+		<row cost_wood="590" cost_clay="460" cost_iron="350" cost_crop="180" cost_gold="3320" cost_population="1" cost_production="2" provide_production="1" />
+		<row cost_wood="740" cost_clay="590" cost_iron="450" cost_crop="230" cost_gold="4340" cost_population="1" cost_production="4" provide_production="2" />
+		<row cost_wood="950" cost_clay="755" cost_iron="575" cost_crop="295" cost_gold="5540" cost_population="1" cost_production="8" provide_production="4" />
+		<row cost_wood="1215" cost_clay="965" cost_iron="735" cost_crop="375" cost_gold="10930" cost_population="1" cost_production="16" provide_production="7" />
+		<row cost_wood="1555" cost_clay="1235" cost_iron="940" cost_crop="485" cost_gold="122540" cost_population="1" cost_production="32" provide_production="11" />
 	</rows>
 </sheet>
